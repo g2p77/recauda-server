@@ -1,0 +1,14 @@
+{
+  "name": "recauda-server",
+  "version": "1.0.0",
+  "description": "Servidor propio de Recauda (app de cobranza). Sin dependencias externas: solo Node.js.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

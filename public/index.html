@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0F2A22">
+<title>Recauda — Gestión de cobranza</title>
+<link rel="manifest" href="data:application/manifest+json,{}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#211C13;
+  --paper:#F8F2E2;
+  --paper-dark:#ECE0BE;
+  --paper-line:#DBCA9C;
+  --green-950:#0F2A22;
+  --green-800:#173D30;
+  --green-700:#1E4E3D;
+  --green-500:#2F6E52;
+  --green-pale:#E3ECE4;
+  --gold-600:#B9862A;
+  --gold-700:#8F6620;
+  --gold-pale:#F3E3BC;
+  --red-700:#8C2E27;
+  --red-pale:#F1DAD3;
+  --success:#2F6E52;
+  --success-pale:#E1ECE2;
+  --muted:#8A8064;
+  --radius:16px;
+  --radius-sm:11px;
+  --shadow: 0 2px 8px rgba(28,24,15,0.07), 0 1px 2px rgba(28,24,15,0.06);
+  --shadow-lift: 0 14px 32px rgba(15,42,34,0.20);
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:var(--font-body);
+  background:var(--paper-dark);
+  color:var(--ink);
+  overscroll-behavior-y:none;
+  -webkit-font-smoothing:antialiased;
+}
+#app{
+  max-width:520px;
+  margin:0 auto;
+  min-height:100vh;
+  background:var(--paper);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(33,28,19,0.05) 1px, transparent 0);
+  background-size:16px 16px;
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  box-shadow: 0 0 50px rgba(0,0,0,0.18);
+}
+button{font-family:inherit; cursor:pointer;}
+button:active{transform:scale(0.97);}
+input,select,textarea{font-family:inherit;}
+::selection{background:var(--gold-600); color:#fff;}
+svg{display:block;}
+
+/* ---------- Top bar ---------- */
+.topbar{
+  background:var(--green-950);
+  background-image:linear-gradient(160deg, var(--green-800) 0%, var(--green-950) 75%);
+  color:#fff;
+  padding:18px 18px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky; top:0; z-index:20;
+  box-shadow: 0 4px 16px rgba(15,42,34,0.35);
+}
+.topbar .brand{display:flex; align-items:center; gap:11px; min-width:0;}
+.topbar .brand .logo-badge{
+  width:38px;height:38px;border-radius:10px;
+  background:var(--gold-600);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display); font-weight:700; color:var(--green-950);
+  font-size:17px; flex-shrink:0;
+  transform:rotate(-4deg);
+  box-shadow:0 3px 8px rgba(0,0,0,0.25);
+  overflow:hidden;
+}
+.topbar .brand .logo-badge img{width:100%;height:100%;object-fit:cover;}
+.topbar h1{
+  font-family:var(--font-display);
+  font-size:16.5px; margin:0; font-weight:600; letter-spacing:.1px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.topbar .sub{font-size:11px; opacity:.7; margin-top:1px; white-space:nowrap;}
+.topbar .actions{display:flex; gap:8px; align-items:center; flex-shrink:0;}
+.icon-btn{
+  background:rgba(255,255,255,0.1);
+  border:none; color:#fff; width:36px;height:36px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+}
+.icon-btn:active{background:rgba(255,255,255,0.22);}
+.icon-btn svg{width:18px;height:18px;}
+
+.page-header{padding:20px 18px 4px;}
+.page-header h2{font-family:var(--font-display); font-size:22px; margin:0 0 3px; font-weight:600;}
+.page-header p{margin:0; color:var(--muted); font-size:13px;}
+
+/* ---------- Bottom nav ---------- */
+.bottomnav{
+  position:sticky; bottom:0; z-index:20;
+  background:var(--paper);
+  border-top:1px solid var(--paper-line);
+  display:flex;
+  padding:7px 4px calc(7px + env(safe-area-inset-bottom));
+}
+.navbtn{
+  flex:1; background:none; border:none; display:flex; flex-direction:column;
+  align-items:center; gap:3px; padding:6px 2px; color:var(--muted);
+  font-size:10.5px; font-weight:600; border-radius:10px;
+}
+.navbtn svg{width:21px;height:21px; stroke:var(--muted); transition:stroke .15s;}
+.navbtn.active{color:var(--green-700);}
+.navbtn.active svg{stroke:var(--green-700);}
+
+/* ---------- Content ---------- */
+main{flex:1; overflow-y:auto; padding-bottom:8px;}
+.view{display:none; animation:fadeIn .2s ease;}
+.view.active{display:block;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+.section{padding:10px 18px;}
+.section-title{
+  font-family:var(--font-display); font-size:12.5px; text-transform:uppercase;
+  letter-spacing:1.2px; color:var(--green-500); margin:16px 0 8px; font-weight:600;
+  display:flex; align-items:center; gap:6px;
+}
+.section-title::after{content:''; flex:1; height:1px; background:var(--paper-line);}
+
+/* ---------- Cards ---------- */
+.card{
+  background:#fff; border-radius:var(--radius); padding:15px 16px;
+  box-shadow:var(--shadow); margin-bottom:10px; border:1px solid var(--paper-line);
+}
+.card.flat{box-shadow:none;}
+.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.stat-card{
+  background:var(--green-950); background-image:linear-gradient(150deg,var(--green-700),var(--green-950));
+  color:#fff; border-radius:var(--radius); padding:14px 16px; position:relative; overflow:hidden;
+}
+.stat-card.alt{background:var(--gold-600); background-image:linear-gradient(150deg,#CE9C3E,var(--gold-700)); color:#2B1F08;}
+.stat-card .label{font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; opacity:.85; font-weight:600;}
+.stat-card .counter{display:flex; margin-top:6px;}
+.stat-card .counter span{
+  font-family:var(--font-mono); font-size:21px; font-weight:700;
+  display:inline-block; transition:transform .25s ease, opacity .25s ease;
+}
+.stat-card .counter.bump span{animation:bump .3s ease;}
+@keyframes bump{0%{transform:translateY(0);} 40%{transform:translateY(-4px);} 100%{transform:translateY(0);}}
+
+.progress-wrap{background:#fff; border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:10px; border:1px solid var(--paper-line);}
+.progress-bar-bg{height:10px; background:var(--paper-dark); border-radius:6px; overflow:hidden; margin-top:9px;}
+.progress-bar-fill{height:100%; background:linear-gradient(90deg,var(--green-500),var(--green-700)); border-radius:6px; transition:width .5s cubic-bezier(.4,0,.2,1);}
+
+/* client / loan list item */
+.list-item{
+  display:flex; align-items:center; gap:12px; background:#fff; border-radius:var(--radius);
+  padding:12px 14px; margin-bottom:8px; box-shadow:var(--shadow); border:1px solid var(--paper-line);
+}
+.avatar{
+  width:42px;height:42px; border-radius:50%; background:var(--green-pale); color:var(--green-700);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--font-display);
+  flex-shrink:0; font-size:15px;
+}
+.list-item .info{flex:1; min-width:0;}
+.list-item .info .name{font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.list-item .info .meta{font-size:12px; color:var(--muted); margin-top:2px; display:flex; align-items:center; gap:5px;}
+.list-item .right{text-align:right; flex-shrink:0;}
+.list-item .right .amount{font-family:var(--font-mono); font-weight:700; font-size:14px;}
+.list-item .right .amount.due{color:var(--red-700);}
+
+/* stamp badge */
+.stamp{
+  display:inline-flex; align-items:center; gap:3px; font-family:var(--font-display); font-weight:600; font-size:9.5px;
+  text-transform:uppercase; letter-spacing:.8px; padding:3px 8px; border-radius:20px;
+  border:1.4px solid currentColor; transform:rotate(-2.5deg);
+}
+.stamp.ok{color:var(--success); background:var(--success-pale);}
+.stamp.warn{color:var(--gold-700); background:var(--gold-pale);}
+.stamp.danger{color:var(--red-700); background:var(--red-pale);}
+.stamp.muted{color:var(--muted); background:var(--paper-dark); border-style:dashed;}
+
+/* buttons */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  padding:13px 18px; border-radius:var(--radius-sm); border:none; font-weight:700; font-size:14.5px;
+  width:100%; transition:transform .1s ease;
+}
+.btn svg{width:16px;height:16px;}
+.btn-primary{background:var(--green-700); color:#fff;}
+.btn-primary:active{background:var(--green-800);}
+.btn-gold{background:var(--gold-600); color:#2B1F08;}
+.btn-outline{background:transparent; border:1.5px solid var(--paper-line); color:var(--ink);}
+.btn-danger{background:var(--red-pale); color:var(--red-700);}
+.btn-sm{width:auto; padding:9px 14px; font-size:13px;}
+.btn-row{display:flex; gap:8px;}
+.btn[disabled]{opacity:.5;}
+.fab{
+  position:fixed; right:calc(50% - 260px + 18px); bottom:80px; z-index:30;
+  width:56px; height:56px; border-radius:50%; background:var(--green-700); color:#fff; border:none;
+  box-shadow:var(--shadow-lift); display:flex; align-items:center;justify-content:center;
+}
+.fab svg{width:24px;height:24px;}
+@media (max-width:559px){ .fab{right:18px;} }
+
+/* forms */
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.5px;}
+.field input, .field select, .field textarea{
+  width:100%; padding:11px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--paper-line);
+  background:#fff; font-size:14.5px; color:var(--ink);
+}
+.field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--green-500); outline-offset:1px; border-color:var(--green-500);}
+.seg{display:flex; background:var(--paper-dark); border-radius:var(--radius-sm); padding:3px; gap:3px;}
+.seg button{flex:1; background:none; border:none; padding:9px 6px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--muted);}
+.seg button.active{background:#fff; color:var(--green-700); box-shadow:0 1px 3px rgba(0,0,0,0.15);}
+
+.toggle-row{display:flex; align-items:center; justify-content:space-between; padding:4px 0;}
+.toggle-row .txt{flex:1; padding-right:12px;}
+.toggle-row .txt b{font-size:13.5px; display:block;}
+.toggle-row .txt span{font-size:12px; color:var(--muted); line-height:1.4;}
+.switch{position:relative; width:44px; height:26px; flex-shrink:0;}
+.switch input{opacity:0; width:100%; height:100%; margin:0; position:absolute; z-index:2; cursor:pointer;}
+.switch .track{position:absolute; inset:0; background:var(--paper-line); border-radius:20px; transition:background .2s;}
+.switch .thumb{position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.3); transition:transform .2s;}
+.switch input:checked ~ .track{background:var(--green-600, var(--green-700));}
+.switch input:checked ~ .thumb{transform:translateX(18px);}
+
+.empty{text-align:center; padding:38px 20px; color:var(--muted);}
+.empty .empty-ill{margin:0 auto 12px; width:56px; height:56px; color:var(--paper-line);}
+.empty p{margin:2px 0; font-size:13.5px;}
+.empty p.lead{color:var(--ink); font-weight:600; font-size:14.5px;}
+
+.onboard-card{
+  background:var(--green-950); background-image:linear-gradient(160deg,var(--green-700),var(--green-950));
+  border-radius:var(--radius); padding:18px; color:#fff; margin-bottom:14px; box-shadow:var(--shadow-lift);
+}
+.onboard-card h3{font-family:var(--font-display); font-size:16px; margin:0 0 3px; font-weight:600;}
+.onboard-card p{margin:0 0 14px; font-size:12.5px; opacity:.8; line-height:1.5;}
+.onboard-step{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid rgba(255,255,255,0.12);}
+.onboard-step:first-of-type{border-top:none;}
+.onboard-step .num{
+  width:24px;height:24px;border-radius:50%; background:rgba(255,255,255,0.14); color:#fff; font-family:var(--font-mono);
+  font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-weight:700;
+}
+.onboard-step.done .num{background:var(--gold-600); color:#2B1F08;}
+.onboard-step span{flex:1; font-size:13px;}
+.onboard-step.done span{opacity:.6; text-decoration:line-through;}
+
+.plan-chip{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:4px 10px;
+  border-radius:20px; background:var(--gold-pale); color:var(--gold-700); text-transform:uppercase; letter-spacing:.4px;
+}
+.plan-chip.premium{background:var(--green-pale); color:var(--green-700);}
+
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(20,17,10,0.55); z-index:50; display:none;
+  align-items:flex-end; justify-content:center;
+}
+.modal-overlay.active{display:flex;}
+.modal-sheet{
+  background:var(--paper); width:100%; max-width:520px; border-radius:20px 20px 0 0;
+  max-height:90vh; overflow-y:auto; padding:20px 18px calc(24px + env(safe-area-inset-bottom));
+  animation:slideUp .22s cubic-bezier(.3,.8,.4,1); position:relative;
+}
+.modal-close{
+  position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%;
+  background:var(--paper-dark); border:none; color:var(--muted); display:flex; align-items:center; justify-content:center; z-index:2;
+}
+.modal-close svg{width:15px;height:15px;}
+@keyframes slideUp{from{transform:translateY(40px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+.modal-handle{width:38px; height:4px; background:var(--paper-line); border-radius:2px; margin:0 auto 14px;}
+.modal-title{font-family:var(--font-display); font-size:19px; font-weight:600; margin:0 0 14px;}
+
+/* receipt — estilo papel perforado */
+.receipt{
+  background:#fff; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px;
+  position:relative;
+}
+.receipt-head{background:var(--green-950); background-image:linear-gradient(160deg,var(--green-700),var(--green-950)); color:#fff; padding:20px; text-align:center;}
+.receipt-head .biz{font-family:var(--font-display); font-weight:600; font-size:16px;}
+.receipt-head .amt{font-family:var(--font-mono); font-size:31px; font-weight:700; margin-top:6px;}
+.receipt-perf{
+  height:14px; background:
+    radial-gradient(circle 5px at 10px 0, transparent 5px, #fff 5.5px) top/20px 14px repeat-x,
+    var(--green-950);
+}
+.receipt-body{padding:16px 18px;}
+.receipt-row{display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; border-bottom:1px dotted var(--paper-line);}
+.receipt-row span:first-child{color:var(--muted);}
+.receipt-row span:last-child{font-weight:600; font-family:var(--font-mono); text-align:right;}
+.receipt-sig{padding:12px 18px 18px; text-align:center;}
+.receipt-sig img{max-width:160px; max-height:60px; border-bottom:1.5px solid var(--paper-line);}
+.receipt-sig .cap{font-size:10.5px; color:var(--muted); margin-top:4px; letter-spacing:.4px; text-transform:uppercase;}
+
+/* firma canvas */
+.sig-pad-wrap{border:1.5px dashed var(--paper-line); border-radius:var(--radius-sm); background:#fff; position:relative;}
+.sig-pad-wrap canvas{width:100%; height:110px; display:block; touch-action:none; border-radius:var(--radius-sm);}
+.sig-clear{position:absolute; top:6px; right:6px; font-size:11px; background:var(--paper-dark); border:none; padding:4px 8px; border-radius:8px; color:var(--muted); font-weight:600;}
+
+/* documento pagaré */
+.doc-paper{background:#fff; border:1px solid var(--paper-line); border-radius:var(--radius); padding:22px 20px; font-size:13px; line-height:1.7; box-shadow:var(--shadow);}
+.doc-paper h3{font-family:var(--font-display); text-align:center; font-size:17px; margin:0 0 4px;}
+.doc-paper .doc-sub{text-align:center; color:var(--muted); font-size:11px; margin-bottom:16px; text-transform:uppercase; letter-spacing:1px;}
+.doc-paper b{font-family:var(--font-mono);}
+.doc-sign-line{margin-top:30px; border-top:1px solid var(--ink); padding-top:6px; font-size:11px; color:var(--muted); text-align:center;}
+
+.toast{
+  position:fixed; bottom:88px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+  background:var(--ink); color:#fff; padding:11px 20px; border-radius:30px; font-size:13.5px; font-weight:600;
+  z-index:80; transition:all .25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.25); max-width:86%; text-align:center;
+  pointer-events:none;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+.tag-row{display:flex; flex-wrap:wrap; gap:6px;}
+.chip{font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:14px; background:var(--paper-dark); color:var(--muted);}
+.chip.active{background:var(--green-700); color:#fff;}
+
+hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
+.small-link{font-size:12.5px; color:var(--green-500); font-weight:700; background:none; border:none; padding:4px 0;}
+.center{text-align:center;}
+.gap-8{margin-bottom:8px;}
+.row-between{display:flex; align-items:center; justify-content:space-between;}
+.hint{font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ LOGIN VIEW ============ -->
+  <div class="view active" id="view-login" style="display:flex; flex-direction:column; min-height:100vh; justify-content:center; padding:28px;">
+    <div style="text-align:center; margin-bottom:30px;">
+      <div style="width:66px;height:66px;border-radius:18px;background:var(--gold-600);display:flex;align-items:center;justify-content:center;margin:0 auto 16px; transform:rotate(-4deg); box-shadow:var(--shadow-lift);">
+        <span style="font-family:var(--font-display); font-weight:700; font-size:29px; color:var(--green-950);">R</span>
+      </div>
+      <h1 style="font-family:var(--font-display); font-size:25px; margin:0; font-weight:600;">Recauda</h1>
+      <p style="color:var(--muted); font-size:13.5px; margin-top:5px;">Cada cobro, cada cliente, cada peso — en orden.</p>
+    </div>
+    <div id="login-users" style="margin-bottom:14px;"></div>
+    <div class="hint center" style="margin-top:24px;">Los datos viven en tu propio servidor, no en el celular. Habla con tu administrador si necesitas un perfil nuevo.</div>
+  </div>
+
+  <!-- ============ MAIN SHELL ============ -->
+  <div id="shell" style="display:none; flex-direction:column; min-height:100vh;">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo-badge" id="topbar-logo">R</div>
+        <div style="min-width:0;">
+          <h1 id="topbar-title">Recauda</h1>
+          <div class="sub" id="topbar-sub">—</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn" title="Cambiar usuario" onclick="Auth.logout()" id="icon-logout"></button>
+      </div>
+    </div>
+
+    <main id="main-content">
+
+      <!-- ---- DASHBOARD ---- -->
+      <div class="view" id="view-dashboard">
+        <div class="page-header">
+          <h2 id="dash-greeting">Hola 👋</h2>
+          <p id="dash-date"></p>
+        </div>
+        <div class="section">
+          <div id="dash-onboarding"></div>
+          <div class="progress-wrap">
+            <div class="row-between">
+              <strong style="font-size:13.5px;">Progreso de cobranza de hoy</strong>
+              <span id="dash-progress-pct" style="font-family:var(--font-mono); font-weight:700; color:var(--green-700);">0%</span>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="dash-progress-fill" style="width:0%"></div></div>
+            <div class="hint"><span id="dash-progress-text">Todavía no registras cobros hoy</span></div>
+          </div>
+          <div class="stat-grid gap-8">
+            <div class="stat-card">
+              <div class="label">Cartera activa</div>
+              <div class="counter" id="dash-cartera"><span>$0</span></div>
+            </div>
+            <div class="stat-card alt">
+              <div class="label">Cobrado hoy</div>
+              <div class="counter" id="dash-hoy"><span>$0</span></div>
+            </div>
+          </div>
+          <div class="section-title">Acciones rápidas</div>
+          <div class="btn-row gap-8">
+            <button class="btn btn-primary" id="btn-cobrar-rapido"></button>
+            <button class="btn btn-outline" id="btn-cliente-rapido"></button>
+          </div>
+          <div class="section-title">Clientes en mora</div>
+          <div id="dash-mora-list"></div>
+          <div class="section-title">Al día hoy</div>
+          <div id="dash-today-list"></div>
+        </div>
+      </div>
+
+      <!-- ---- CLIENTES ---- -->
+      <div class="view" id="view-clientes">
+        <div class="page-header">
+          <div class="row-between">
+            <h2>Clientes</h2>
+            <span class="plan-chip" id="clientes-plan-chip"></span>
+          </div>
+          <p>Tu cartera completa, de un vistazo</p>
+        </div>
+        <div class="section">
+          <input type="text" placeholder="Buscar por nombre..." class="field" style="padding:11px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--paper-line); width:100%; margin-bottom:12px;" oninput="UI.filterClients(this.value)">
+          <div id="clientes-list"></div>
+        </div>
+        <button class="fab" id="fab-cliente"></button>
+      </div>
+
+      <!-- ---- CLIENTE DETALLE ---- -->
+      <div class="view" id="view-cliente-detalle">
+        <div class="page-header">
+          <button class="small-link" onclick="UI.goto('clientes')">← Volver a clientes</button>
+        </div>
+        <div class="section" id="cliente-detalle-content"></div>
+      </div>
+
+      <!-- ---- RUTAS ---- -->
+      <div class="view" id="view-rutas">
+        <div class="page-header">
+          <h2>Rutas de cobro</h2>
+          <p>Tus clientes organizados por zona</p>
+        </div>
+        <div class="section">
+          <div class="tag-row gap-8" id="rutas-zona-filter"></div>
+          <div id="rutas-list"></div>
+        </div>
+      </div>
+
+      <!-- ---- REPORTES ---- -->
+      <div class="view" id="view-reportes">
+        <div class="page-header">
+          <h2>Reportes</h2>
+          <p>Cómo va tu cartera y tu equipo</p>
+        </div>
+        <div class="section">
+          <div class="stat-grid gap-8">
+            <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Capital prestado</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-capital">$0</div></div>
+            <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Intereses generados</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-interes">$0</div></div>
+            <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Recuperado total</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-recuperado">$0</div></div>
+            <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">% en mora</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-mora">0%</div></div>
+          </div>
+          <div class="section-title">Últimos 7 días</div>
+          <div class="card flat" id="rep-chart-wrap" style="padding:16px 14px;"></div>
+          <div class="section-title">Por cobrador</div>
+          <div id="rep-cobradores"></div>
+          <div class="section-title">Exportar</div>
+          <div class="btn-row">
+            <button class="btn btn-outline" onclick="Reports.exportCSV('clientes')">Clientes en CSV</button>
+            <button class="btn btn-outline" onclick="Reports.exportCSV('cobros')">Cobros en CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- MAS / AJUSTES ---- -->
+      <div class="view" id="view-mas">
+        <div class="page-header">
+          <h2>Más</h2>
+          <p>Tu negocio, tu equipo y tus datos</p>
+        </div>
+        <div class="section">
+
+          <div class="section-title">Plan</div>
+          <div class="card" id="plan-card"></div>
+
+          <div id="admin-only-negocio">
+          <div class="section-title">Mi negocio</div>
+          <div class="card">
+            <div class="field">
+              <label>Nombre del negocio</label>
+              <input type="text" id="cfg-nombre">
+            </div>
+            <div class="field">
+              <label>Moneda</label>
+              <select id="cfg-moneda">
+                <option value="COP">COP — Peso colombiano</option>
+                <option value="MXN">MXN — Peso mexicano</option>
+                <option value="PEN">PEN — Sol peruano</option>
+                <option value="BRL">BRL — Real brasileño</option>
+                <option value="USD">USD — Dólar</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Inicial de marca</label>
+              <input type="text" id="cfg-logo" maxlength="2">
+              <div class="hint">Se usa si no subes una imagen de logo.</div>
+            </div>
+            <div class="field">
+              <label>Imagen de logo (opcional)</label>
+              <div class="btn-row">
+                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('cfg-logo-file').click()">Subir imagen</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="Config.quitarLogo()">Quitar imagen</button>
+              </div>
+              <input type="file" id="cfg-logo-file" accept="image/*" style="display:none" onchange="Config.subirLogo(this.files[0])">
+            </div>
+            <button class="btn btn-primary" onclick="Config.save()">Guardar cambios</button>
+          </div>
+
+          <div class="section-title">Recordatorios</div>
+          <div class="card">
+            <div class="toggle-row">
+              <div class="txt">
+                <b>Avisos de cobro pendiente</b>
+                <span>Notifica en este dispositivo mientras la app esté abierta.</span>
+              </div>
+              <label class="switch"><input type="checkbox" id="cfg-recordatorios" onchange="Config.toggleRecordatorios(this.checked)"><span class="track"></span><span class="thumb"></span></label>
+            </div>
+          </div>
+          </div>
+
+          <div class="section-title">Equipo de cobradores</div>
+          <div id="equipo-list"></div>
+          <button class="btn btn-outline gap-8" id="btn-agregar-cobrador" onclick="UI.showNewUserForm()">＋ Agregar cobrador</button>
+
+          <div id="admin-only-datos">
+          <div class="section-title">Tus datos</div>
+          <div class="card">
+            <p class="hint" style="margin-top:0;">Todo tu equipo comparte los mismos datos a través de tu servidor. Puedes descargar una copia de seguridad cuando quieras.</p>
+            <div class="btn-row">
+              <button class="btn btn-outline" onclick="DataIO.exportAll()">Exportar todo</button>
+              <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Importar</button>
+            </div>
+            <input type="file" id="import-file" accept="application/json" style="display:none" onchange="DataIO.importAll(this.files[0])">
+          </div>
+          <div class="card" style="border-color:var(--red-pale);">
+            <button class="btn btn-danger" onclick="DataIO.resetAll()">Borrar todos los datos del servidor</button>
+          </div>
+          </div>
+          <p class="hint center" style="margin:20px 0 4px;">Recauda — hecha con las mejores prácticas de las apps de cobranza para cobradiarios y pagadiarios de Latinoamérica.</p>
+        </div>
+      </div>
+
+    </main>
+
+
+    <div class="bottomnav">
+      <button class="navbtn active" data-view="dashboard" onclick="UI.goto('dashboard')" data-icon="home">Inicio</button>
+      <button class="navbtn" data-view="clientes" onclick="UI.goto('clientes')" data-icon="users">Clientes</button>
+      <button class="navbtn" data-view="rutas" onclick="UI.goto('rutas')" data-icon="pin">Rutas</button>
+      <button class="navbtn" data-view="reportes" onclick="UI.goto('reportes')" data-icon="chart">Reportes</button>
+      <button class="navbtn" data-view="mas" onclick="UI.goto('mas')" data-icon="dots">Más</button>
+    </div>
+  </div>
+
+  <!-- ============ MODALS ============ -->
+  <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) UI.closeModal()">
+    <div class="modal-sheet">
+      <div class="modal-handle" onclick="UI.closeModal()" style="cursor:pointer; width:56px; padding:6px 0 10px;"></div>
+      <button class="modal-close" id="modal-close-btn" onclick="UI.closeModal()" aria-label="Cerrar"></button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* =========================================================
+   ICONOS — línea simple, trazo currentColor
+   ========================================================= */
+const ICONS = {
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.2a3.2 3.2 0 0 1 0 6.2"/><path d="M17.5 14c2.6.6 4 2.6 4 6"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7.4 7-12.6A7 7 0 0 0 5 9.4C5 14.6 12 22 12 22Z"/><circle cx="12" cy="9.4" r="2.4"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M11 20V4"/><path d="M18 20v-7"/><path d="M2.5 20.5h19"/></svg>',
+  dots:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  cash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 10v0M18 14v0"/></svg>',
+  logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
+  receipt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h12v19l-2.5-1.6L13 21.5l-2.5-1.6L8 21.5l-2.5-1.6L6 2.5Z"/><path d="M9 8h6M9 12h6M9 16h3.5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 7"/></svg>',
+  compass:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="m14.8 9.2-2 5.6-5.6 2 2-5.6 5.6-2Z"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2.5h7l4 4V21a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1Z"/><path d="M14 2.5V7h4"/><path d="M9 12.5h6M9 16h6"/></svg>',
+  print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M6 14.5h12V21H6z"/></svg>',
+  whatsapp:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5a9.4 9.4 0 0 0-8 14.3L2.5 21l4.4-1.4A9.4 9.4 0 1 0 12 2.5Zm0 1.9a7.5 7.5 0 0 1 6.1 11.8l-.3.4.6 2.2-2.3-.6-.4.2A7.5 7.5 0 1 1 12 4.4Zm-3 3.5c-.2 0-.5.1-.7.4-.2.3-.9.9-.9 2s.9 2.3 1 2.5c.1.1 1.8 2.8 4.4 3.8 2.2.9 2.6.7 3.1.6.5 0 1.6-.6 1.8-1.3.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.6-.4l-1.8-.9c-.2-.1-.4-.1-.6.1l-.7.9c-.1.2-.3.2-.5.1-.3-.1-1.2-.4-2.2-1.4-.8-.8-1.4-1.7-1.5-2-.1-.2 0-.4.1-.5l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5Z"/></svg>',
+  camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg>',
+  sparkle:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c.6 3.6 1.9 4.9 5.5 5.5-3.6.6-4.9 1.9-5.5 5.5-.6-3.6-1.9-4.9-5.5-5.5 3.6-.6 4.9-1.9 5.5-5.5Z"/><path d="M19 15.5c.3 1.8 1 2.5 2.8 2.8-1.8.3-2.5 1-2.8 2.8-.3-1.8-1-2.5-2.8-2.8 1.8-.3 2.5-1 2.8-2.8Z"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg>',
+  cloudOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M16.9 16.9H6.5a3.9 3.9 0 0 1-.9-7.7 5.5 5.5 0 0 1 9.6-4.3"/><path d="M19.3 14.8A3.9 3.9 0 0 0 18 7.2"/></svg>',
+};
+function icon(name, size){ return ICONS[name] ? ICONS[name].replace('<svg ', `<svg style="width:${size||18}px;height:${size||18}px" `) : ''; }
+
+/* =========================================================
+   API — comunicación con el servidor propio (mismo origen)
+   ========================================================= */
+const SESSION_KEY = 'recauda_session';
+const CACHE_KEY = 'recauda_cache';
+const LIMITE_PLAN_GRATIS = 10;
+
+const Api = {
+  token: null,
+  async request(method, path, body, auth){
+    const headers = {'Content-Type':'application/json'};
+    if(auth !== false && this.token) headers['Authorization'] = 'Bearer '+this.token;
+    let res;
+    try{
+      res = await fetch(path, { method, headers, body: body!==undefined ? JSON.stringify(body) : undefined });
+    } catch(e){
+      const err = new Error('No se pudo conectar con el servidor'); err.network = true; throw err;
+    }
+    let data = null;
+    try { data = await res.json(); } catch(e){ /* respuesta vacía */ }
+    if(!res.ok){
+      const err = new Error((data && data.error) || ('Error '+res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  },
+  team(){ return this.request('GET', '/api/team', undefined, false); },
+  login(userId, pin){ return this.request('POST', '/api/login', {userId, pin}, false); },
+  state(){ return this.request('GET', '/api/state'); },
+  crearUsuario(d){ return this.request('POST', '/api/usuarios', d); },
+  crearCliente(d){ return this.request('POST', '/api/clientes', d); },
+  editarCliente(id, d){ return this.request('PUT', '/api/clientes/'+id, d); },
+  eliminarCliente(id){ return this.request('DELETE', '/api/clientes/'+id); },
+  crearPrestamo(d){ return this.request('POST', '/api/prestamos', d); },
+  registrarCobro(d){ return this.request('POST', '/api/cobros', d); },
+  actualizarNegocio(d){ return this.request('PUT', '/api/negocio', d); },
+  exportar(){ return this.request('GET', '/api/export'); },
+  importar(d){ return this.request('POST', '/api/import', d); },
+  resetear(){ return this.request('DELETE', '/api/reset?confirm=BORRAR'); }
+};
+
+let STATE = null; // { negocio, usuarios, clientes, prestamos, cobros, yo }
+
+function saveSession(token, user){ localStorage.setItem(SESSION_KEY, JSON.stringify({token, user})); }
+function loadSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); }catch(e){ return null; } }
+function clearSession(){ localStorage.removeItem(SESSION_KEY); }
+function cacheState(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(STATE)); }catch(e){} }
+function loadCachedState(){ try{ return JSON.parse(localStorage.getItem(CACHE_KEY)); }catch(e){ return null; } }
+
+/* ---------- formato de moneda ---------- */
+const MONEDA_SYMBOLS = {COP:'$', MXN:'$', PEN:'S/', BRL:'R$', USD:'$'};
+function fmt(n){
+  const sym = MONEDA_SYMBOLS[STATE.negocio.moneda] || '$';
+  n = Math.round(n||0);
+  return sym + n.toLocaleString('es-CO');
+}
+function fmtDate(d){
+  const dt = new Date(d);
+  return dt.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric'});
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+/* =========================================================
+   CÁLCULO DE PRÉSTAMOS (vista previa en el cliente)
+   El servidor vuelve a calcular y es la fuente de verdad real;
+   esta copia solo sirve para mostrar el resultado al instante
+   mientras se llena el formulario, sin esperar al servidor.
+   La tasa que se ingresa SIEMPRE es mensual y se prorratea
+   según la frecuencia de cobro y el número de cuotas.
+   ========================================================= */
+const PERIOD_DAYS = {diario:1, semanal:7, quincenal:15, mensual:30};
+
+const Loans = {
+  tasaPeriodo(tasaMensualPct, frecuencia){
+    const dias = PERIOD_DAYS[frecuencia] || 1;
+    return (tasaMensualPct/100) * (dias/30);
+  },
+  calcular(monto, tasaMensualPct, numCuotas, modo, frecuencia){
+    const r = this.tasaPeriodo(tasaMensualPct, frecuencia);
+    let total, cuota;
+    if(modo === 'fijo'){
+      total = monto * (1 + r*numCuotas);
+      cuota = total/numCuotas;
+    } else if(modo === 'recalculado'){
+      if(r === 0){ total = monto; cuota = monto/numCuotas; }
+      else {
+        cuota = monto * r / (1 - Math.pow(1+r, -numCuotas));
+        total = cuota*numCuotas;
+      }
+    } else { // capitalizacion bancaria (interés compuesto sobre cada cuota)
+      total = monto * Math.pow(1+r, numCuotas);
+      cuota = total/numCuotas;
+    }
+    return { total: Math.round(total), cuota: Math.round(cuota) };
+  },
+  deCliente(clienteId){ return STATE.prestamos.filter(p=>p.clienteId===clienteId); },
+  activoDeCliente(clienteId){ return STATE.prestamos.find(p=>p.clienteId===clienteId && p.estado==='activo'); },
+  diasEnMora(prestamo){
+    const cobros = STATE.cobros.filter(c=>c.prestamoId===prestamo.id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    const ultima = cobros[0] ? new Date(cobros[0].fecha) : new Date(prestamo.fechaInicio);
+    const diasCiclo = PERIOD_DAYS[prestamo.frecuencia] || 1;
+    const dias = Math.floor((Date.now() - ultima.getTime())/(1000*3600*24));
+    return Math.max(0, dias - diasCiclo);
+  }
+};
+
+/* =========================================================
+   COBROS / PAGOS (lectura local sobre el estado sincronizado)
+   ========================================================= */
+const Payments = {
+  deHoy(){
+    const hoy = todayISO();
+    return STATE.cobros.filter(c=>c.fecha.slice(0,10)===hoy);
+  },
+  ultimosNDias(n){
+    const out = [];
+    for(let i=n-1;i>=0;i--){
+      const d = new Date();
+      d.setDate(d.getDate()-i);
+      const iso = d.toISOString().slice(0,10);
+      const total = STATE.cobros.filter(c=>c.fecha.slice(0,10)===iso).reduce((s,c)=>s+c.monto,0);
+      out.push({fecha:iso, total, dow: d.toLocaleDateString('es-CO',{weekday:'short'})});
+    }
+    return out;
+  }
+};
+
+/* =========================================================
+   AUTENTICACIÓN — contra el servidor
+   ========================================================= */
+const Auth = {
+  currentUser(){ return STATE ? STATE.yo : null; },
+  async login(userId, pin){
+    const { token, user } = await Api.login(userId, pin);
+    Api.token = token;
+    saveSession(token, user);
+  },
+  logout(){
+    Api.token = null;
+    clearSession();
+    document.getElementById('shell').style.display='none';
+    document.getElementById('view-login').style.display='flex';
+    UI.renderLogin();
+  }
+};
+
+/* =========================================================
+   REPORTES
+   ========================================================= */
+const Reports = {
+  totales(){
+    const capital = STATE.prestamos.reduce((s,p)=>s+p.monto,0);
+    const total = STATE.prestamos.reduce((s,p)=>s+p.total,0);
+    const interes = total - capital;
+    const recuperado = STATE.cobros.reduce((s,c)=>s+c.monto,0);
+    const activos = STATE.prestamos.filter(p=>p.estado==='activo');
+    const enMora = activos.filter(p=>Loans.diasEnMora(p) > 0).length;
+    const morPct = activos.length ? Math.round((enMora/activos.length)*100) : 0;
+    return {capital, interes, recuperado, morPct};
+  },
+  exportCSV(tipo){
+    let rows = [];
+    if(tipo === 'clientes'){
+      rows.push(['Nombre','Telefono','Direccion','Zona','Cobrador','Prestamo total','Saldo']);
+      STATE.clientes.forEach(cl=>{
+        const p = Loans.activoDeCliente(cl.id);
+        const cobrador = STATE.usuarios.find(u=>u.id===cl.cobradorId);
+        rows.push([cl.nombre, cl.telefono||'', cl.direccion||'', cl.zona||'', cobrador?cobrador.nombre:'', p?p.total:'', p?p.saldo:'']);
+      });
+    } else {
+      rows.push(['Fecha','Cliente','Monto','Metodo','Cobrador']);
+      STATE.cobros.forEach(c=>{
+        const cl = STATE.clientes.find(x=>x.id===c.clienteId);
+        const cobrador = STATE.usuarios.find(u=>u.id===c.cobradorId);
+        rows.push([c.fecha.slice(0,10), cl?cl.nombre:'', c.monto, c.metodo, cobrador?cobrador.nombre:'']);
+      });
+    }
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `recauda_${tipo}_${todayISO()}.csv`;
+    a.click();
+    UI.toast('CSV descargado');
+  }
+};
+
+/* =========================================================
+   IMPORTAR / EXPORTAR / RESET — vía servidor (solo administrador)
+   ========================================================= */
+const DataIO = {
+  async exportAll(){
+    try{
+      const data = await Api.exportar();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `recauda_backup_${todayISO()}.json`;
+      a.click();
+      UI.toast('Copia de seguridad exportada');
+    } catch(e){ UI.toast(e.message); }
+  },
+  importAll(file){
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async e=>{
+      try{
+        const parsed = JSON.parse(e.target.result);
+        await Api.importar(parsed);
+        UI.toast('Datos importados');
+        await UI.refreshState();
+        UI.boot();
+      } catch(err){ UI.toast(err.message || 'Ese archivo no es válido'); }
+    };
+    reader.readAsText(file);
+  },
+  async resetAll(){
+    if(!confirm('¿Seguro que quieres borrar TODOS los datos del servidor? Esta acción no se puede deshacer.')) return;
+    try{
+      await Api.resetear();
+      UI.toast('Datos borrados');
+      Auth.logout();
+    } catch(e){ UI.toast(e.message); }
+  }
+};
+
+/* =========================================================
+   CONFIGURACIÓN DE NEGOCIO
+   ========================================================= */
+const Config = {
+  fill(){
+    document.getElementById('cfg-nombre').value = STATE.negocio.nombre;
+    document.getElementById('cfg-moneda').value = STATE.negocio.moneda;
+    document.getElementById('cfg-logo').value = (STATE.negocio.logo||'').startsWith('data:') ? '' : STATE.negocio.logo;
+    document.getElementById('cfg-recordatorios').checked = !!STATE.negocio.recordatorios;
+  },
+  async save(){
+    try{
+      const nombre = document.getElementById('cfg-nombre').value || 'Mi Negocio';
+      const moneda = document.getElementById('cfg-moneda').value;
+      const inicial = document.getElementById('cfg-logo').value;
+      const patch = { nombre, moneda };
+      if(inicial) patch.logo = inicial;
+      const { negocio } = await Api.actualizarNegocio(patch);
+      STATE.negocio = negocio; cacheState();
+      UI.applyBranding();
+      UI.toast('Ajustes guardados');
+    } catch(e){ UI.toast(e.message); }
+  },
+  async subirLogo(file){
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async e=>{
+      try{
+        const { negocio } = await Api.actualizarNegocio({ logo: e.target.result });
+        STATE.negocio = negocio; cacheState();
+        UI.applyBranding();
+        UI.toast('Logo actualizado');
+      } catch(err){ UI.toast(err.message); }
+    };
+    reader.readAsDataURL(file);
+  },
+  async quitarLogo(){
+    try{
+      const inicial = (STATE.negocio.nombre||'R').slice(0,1).toUpperCase();
+      const { negocio } = await Api.actualizarNegocio({ logo: inicial });
+      STATE.negocio = negocio; cacheState();
+      UI.applyBranding();
+      document.getElementById('cfg-logo').value = inicial;
+      UI.toast('Logo restablecido a inicial');
+    } catch(e){ UI.toast(e.message); }
+  },
+  async toggleRecordatorios(checked){
+    try{
+      const { negocio } = await Api.actualizarNegocio({ recordatorios: checked });
+      STATE.negocio = negocio; cacheState();
+      if(checked && 'Notification' in window){
+        Notification.requestPermission().then(perm=>{
+          if(perm==='granted'){ UI.toast('Recordatorios activados'); new Notification('Recauda', {body:'Te avisaremos aquí sobre cobros pendientes mientras la app esté abierta.'}); }
+          else { UI.toast('Debes permitir notificaciones en el navegador'); }
+        });
+      } else {
+        UI.toast(checked ? 'Recordatorios activados' : 'Recordatorios desactivados');
+      }
+    } catch(e){ UI.toast(e.message); document.getElementById('cfg-recordatorios').checked = !checked; }
+  }
+};
+
+/* =========================================================
+   FIRMA DIGITAL — canvas ligero para capturar firma del cliente
+   ========================================================= */
+const SignaturePad = {
+  ctx:null, drawing:false, hasSignature:false, canvas:null,
+  mount(canvasEl){
+    this.canvas = canvasEl;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvasEl.getBoundingClientRect();
+    canvasEl.width = rect.width*dpr; canvasEl.height = rect.height*dpr;
+    this.ctx = canvasEl.getContext('2d');
+    this.ctx.scale(dpr,dpr);
+    this.ctx.strokeStyle = '#211C13';
+    this.ctx.lineWidth = 2.2;
+    this.ctx.lineCap = 'round';
+    this.hasSignature = false;
+    const pos = e=>{
+      const r = canvasEl.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return {x:p.clientX-r.left, y:p.clientY-r.top};
+    };
+    const start = e=>{ this.drawing=true; const p=pos(e); this.ctx.beginPath(); this.ctx.moveTo(p.x,p.y); e.preventDefault(); };
+    const move = e=>{ if(!this.drawing) return; const p=pos(e); this.ctx.lineTo(p.x,p.y); this.ctx.stroke(); this.hasSignature=true; e.preventDefault(); };
+    const end = ()=>{ this.drawing=false; };
+    canvasEl.addEventListener('mousedown', start);
+    canvasEl.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvasEl.addEventListener('touchstart', start, {passive:false});
+    canvasEl.addEventListener('touchmove', move, {passive:false});
+    canvasEl.addEventListener('touchend', end);
+  },
+  clear(){
+    if(!this.ctx) return;
+    this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+    this.hasSignature = false;
+  },
+  dataURL(){ return this.hasSignature ? this.canvas.toDataURL('image/png') : null; }
+};
+
+
+/* =========================================================
+   UI — navegación, render de vistas y modales
+   ========================================================= */
+const UI = {
+  currentView:'dashboard',
+
+  async init(){
+    document.getElementById('icon-logout').innerHTML = icon('logout',18);
+    document.getElementById('modal-close-btn').innerHTML = icon('x',15);
+    document.getElementById('btn-cobrar-rapido').innerHTML = icon('cash',17)+' Cobrar';
+    document.getElementById('btn-cliente-rapido').innerHTML = icon('plus',17)+' Cliente';
+    document.getElementById('btn-cobrar-rapido').addEventListener('click', ()=>UI.openCobroFlow());
+    document.getElementById('btn-cliente-rapido').addEventListener('click', ()=>UI.showClientForm());
+    document.getElementById('fab-cliente').innerHTML = icon('plus',24);
+    document.getElementById('fab-cliente').addEventListener('click', ()=>UI.showClientForm());
+    document.querySelectorAll('.navbtn').forEach(b=>{ b.innerHTML = icon(b.dataset.icon,21) + '<span>'+b.textContent+'</span>'; });
+
+    const session = loadSession();
+    if(session && session.token){
+      Api.token = session.token;
+      try{
+        STATE = await Api.state();
+        STATE.__offline = false;
+        cacheState();
+        this.boot();
+        return;
+      } catch(e){
+        if(e.status === 401){
+          clearSession(); Api.token = null;
+        } else {
+          const cached = loadCachedState();
+          if(cached){
+            STATE = cached; STATE.__offline = true;
+            this.boot();
+            this.toast('Sin conexión: mostrando la última información guardada');
+            return;
+          }
+        }
+      }
+    }
+    this.renderLogin();
+  },
+
+  async refreshState(){
+    STATE = await Api.state();
+    STATE.__offline = false;
+    cacheState();
+  },
+
+  toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+  },
+
+  emptyIll(){
+    return `<div class="empty-ill">${icon('receipt',56)}</div>`;
+  },
+
+  /* ---------------- LOGIN ---------------- */
+  async renderLogin(){
+    document.getElementById('view-login').style.display='flex';
+    document.getElementById('shell').style.display='none';
+    const wrap = document.getElementById('login-users');
+    wrap.innerHTML = `<div class="center hint">Conectando con el servidor...</div>`;
+    try{
+      const team = await Api.team();
+      wrap.innerHTML = team.map(u=>`
+        <div class="card" style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="UI.attemptLogin('${u.id}')">
+          <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:15px;">${u.nombre}</div>
+            <div class="hint" style="margin:0;">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN'}</div>
+          </div>
+          <div style="color:var(--muted);">›</div>
+        </div>
+      `).join('') || `<div class="empty">${this.emptyIll()}<p class="lead">No hay perfiles todavía</p></div>`;
+    } catch(e){
+      wrap.innerHTML = `
+        <div class="empty">
+          <div class="empty-ill">${icon('cloudOff',56)}</div>
+          <p class="lead">No se pudo conectar con el servidor</p>
+          <p>${e.message||''}</p>
+          <button class="btn btn-outline" style="margin-top:12px;" onclick="UI.renderLogin()">Reintentar</button>
+        </div>`;
+    }
+  },
+  attemptLogin(userId){
+    this._pendingUserId = userId;
+    this.openModal(`
+      <div class="modal-title">Ingresar</div>
+      <div class="field"><label>PIN (déjalo vacío si tu perfil no tiene)</label><input type="password" inputmode="numeric" id="login-pin" placeholder="••••" autofocus></div>
+      <button class="btn btn-primary" onclick="UI.submitLogin('${userId}')">Entrar</button>
+    `);
+  },
+  async submitLogin(userId){
+    const pin = document.getElementById('login-pin').value;
+    try{
+      await Auth.login(userId, pin);
+      STATE = await Api.state();
+      STATE.__offline = false;
+      cacheState();
+      this.closeModal();
+      this.boot();
+    } catch(e){
+      this.toast(e.message || 'No se pudo iniciar sesión');
+    }
+  },
+  showNewUserForm(){
+    this.openModal(`
+      <div class="modal-title">Nuevo cobrador</div>
+      <div class="field"><label>Nombre</label><input type="text" id="nu-nombre" placeholder="Ej: Carlos Pérez"></div>
+      <div class="field"><label>Rol</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'nu-rol','cobrador')">Cobrador</button>
+          <button type="button" onclick="UI.segPick(this,'nu-rol','admin')">Administrador</button>
+        </div>
+        <input type="hidden" id="nu-rol" value="cobrador">
+      </div>
+      <div class="field"><label>PIN</label><input type="password" inputmode="numeric" id="nu-pin" placeholder="4 dígitos"></div>
+      <div class="hint">Como este servidor puede ser accedido de forma remota, se recomienda usar siempre un PIN.</div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="UI.submitNewUser()">Agregar cobrador</button>
+    `);
+  },
+  async submitNewUser(){
+    const nombre = document.getElementById('nu-nombre').value.trim();
+    if(!nombre){ this.toast('Escribe un nombre'); return; }
+    const rol = document.getElementById('nu-rol').value;
+    const pin = document.getElementById('nu-pin').value.trim();
+    try{
+      await Api.crearUsuario({ nombre, pin, rol });
+      await this.refreshState();
+      this.closeModal();
+      this.toast('Cobrador agregado');
+      this.renderEquipo();
+    } catch(e){ this.toast(e.message); }
+  },
+  segPick(btn, hiddenId, value){
+    [...btn.parentElement.children].forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(hiddenId).value = value;
+  },
+
+  /* ---------------- BOOT / SHELL ---------------- */
+  boot(){
+    document.getElementById('view-login').style.display='none';
+    document.getElementById('shell').style.display='flex';
+    this.applyBranding();
+    this.goto('dashboard');
+  },
+  applyBranding(){
+    const logo = STATE.negocio.logo || 'R';
+    const logoBox = document.getElementById('topbar-logo');
+    logoBox.innerHTML = logo.startsWith('data:') ? `<img src="${logo}">` : logo;
+    document.getElementById('topbar-title').textContent = STATE.negocio.nombre;
+    const u = Auth.currentUser();
+    document.getElementById('topbar-sub').textContent = u ? (u.rol==='admin'?'Administrador · '+u.nombre:'Cobrador · '+u.nombre) : '';
+    document.title = STATE.negocio.nombre;
+  },
+
+  goto(view){
+    this.currentView = view;
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+view).classList.add('active');
+    document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+    document.getElementById('main-content').scrollTop = 0;
+    if(view==='dashboard') this.renderDashboard();
+    if(view==='clientes') this.renderClientes();
+    if(view==='rutas') this.renderRutas();
+    if(view==='reportes') this.renderReportes();
+    if(view==='mas'){ Config.fill(); this.renderEquipo(); this.renderPlanCard(); this.applyRoleVisibility(); }
+  },
+
+  applyRoleVisibility(){
+    const esAdmin = Auth.currentUser().rol === 'admin';
+    ['admin-only-negocio','admin-only-datos'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.style.display = esAdmin ? '' : 'none';
+    });
+  },
+
+  openModal(html){
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal-overlay').classList.add('active');
+    if(!this._modalHistoryPushed){
+      history.pushState({recaudaModal:true}, '', location.href);
+      this._modalHistoryPushed = true;
+    }
+  },
+  closeModal(){
+    if(this._modalHistoryPushed){
+      this._modalHistoryPushed = false;
+      history.back();
+    } else {
+      this._hideModal();
+    }
+  },
+  _hideModal(){
+    document.getElementById('modal-overlay').classList.remove('active');
+  },
+
+  /* ---------------- DASHBOARD ---------------- */
+  renderDashboard(){
+    const u = Auth.currentUser();
+    document.getElementById('dash-greeting').textContent = `Hola, ${u.nombre.split(' ')[0]} 👋`;
+    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('es-CO',{weekday:'long', day:'numeric', month:'long'});
+
+    const misClientes = this.clientesVisibles();
+    const misPrestamos = STATE.prestamos.filter(p=>misClientes.some(c=>c.id===p.clienteId));
+    const activos = misPrestamos.filter(p=>p.estado==='activo');
+    const cartera = activos.reduce((s,p)=>s+p.saldo,0);
+    const cobrosHoy = Payments.deHoy().filter(c=>u.rol==='admin' || c.cobradorId===u.id);
+    const totalHoy = cobrosHoy.reduce((s,c)=>s+c.monto,0);
+    const metaHoy = activos.reduce((s,p)=>s+p.cuota,0);
+    const pct = metaHoy>0 ? Math.min(100, Math.round((totalHoy/metaHoy)*100)) : 0;
+
+    this.setCounter('dash-cartera', fmt(cartera));
+    this.setCounter('dash-hoy', fmt(totalHoy));
+    document.getElementById('dash-progress-pct').textContent = pct+'%';
+    document.getElementById('dash-progress-fill').style.width = pct+'%';
+    document.getElementById('dash-progress-text').textContent = cobrosHoy.length
+      ? `${cobrosHoy.length} cobro(s) registrados · meta diaria ${fmt(metaHoy)}`
+      : `Meta diaria estimada: ${fmt(metaHoy)}`;
+
+    const onboard = document.getElementById('dash-onboarding');
+    let onboardHtml = '';
+    if(STATE.__offline){
+      onboardHtml += `
+        <div class="onboard-card" style="background:var(--ink); background-image:none;">
+          <h3>${icon('cloudOff',16)} Sin conexión</h3>
+          <p>No se pudo conectar con el servidor. Estás viendo la última información guardada en este celular; los cambios nuevos no se sincronizarán hasta que vuelvas a tener conexión.</p>
+        </div>`;
+    }
+    if(misClientes.length===0){
+      onboardHtml += `
+        <div class="onboard-card">
+          <h3>Primeros pasos</h3>
+          <p>Así se arma tu cartera en Recauda, en tres toques.</p>
+          <div class="onboard-step"><div class="num">1</div><span>Agrega tu primer cliente</span></div>
+          <div class="onboard-step"><div class="num">2</div><span>Crea su préstamo y elige el interés</span></div>
+          <div class="onboard-step"><div class="num">3</div><span>Registra el cobro cuando te pague</span></div>
+          <button class="btn btn-gold" style="margin-top:12px;" onclick="UI.showClientForm()">${icon('plus',16)} Agregar mi primer cliente</button>
+        </div>`;
+    } else if(activos.length===0){
+      onboardHtml += `
+        <div class="onboard-card">
+          <h3>Ya tienes clientes 🎉</h3>
+          <p>El siguiente paso es crear un préstamo para empezar a cobrar.</p>
+          <button class="btn btn-gold" onclick="UI.goto('clientes')">Ver mis clientes</button>
+        </div>`;
+    }
+    onboard.innerHTML = onboardHtml;
+
+    const mora = activos.filter(p=>Loans.diasEnMora(p)>0)
+      .sort((a,b)=>Loans.diasEnMora(b)-Loans.diasEnMora(a)).slice(0,5);
+    document.getElementById('dash-mora-list').innerHTML = mora.length ? mora.map(p=>this.renderClientRow(p)).join('') :
+      `<div class="empty" style="padding:22px 20px;">${this.emptyIll()}<p>Nadie en mora por ahora</p></div>`;
+
+    const hoyList = activos.filter(p=>Loans.diasEnMora(p)===0).slice(0,5);
+    document.getElementById('dash-today-list').innerHTML = hoyList.length ? hoyList.map(p=>this.renderClientRow(p)).join('') :
+      `<div class="empty" style="padding:22px 20px;">${this.emptyIll()}<p>No hay préstamos activos al día</p></div>`;
+  },
+
+  setCounter(id, text){
+    const el = document.getElementById(id);
+    if(el.querySelector('span').textContent === text) return;
+    el.querySelector('span').textContent = text;
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  },
+
+  clientesVisibles(){
+    const u = Auth.currentUser();
+    if(u.rol==='admin') return STATE.clientes;
+    return STATE.clientes.filter(c=>c.cobradorId===u.id);
+  },
+
+  renderClientRow(prestamo){
+    const cl = STATE.clientes.find(c=>c.id===prestamo.clienteId);
+    if(!cl) return '';
+    const dias = Loans.diasEnMora(prestamo);
+    const badge = dias>0 ? `<span class="stamp danger">${dias}d mora</span>` : `<span class="stamp ok">Al día</span>`;
+    return `
+      <div class="list-item" onclick="UI.openClienteDetalle('${cl.id}')">
+        <div class="avatar">${cl.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info">
+          <div class="name">${cl.nombre}</div>
+          <div class="meta">${badge} · cuota ${fmt(prestamo.cuota)}</div>
+        </div>
+        <div class="right">
+          <div class="amount ${dias>0?'due':''}">${fmt(prestamo.saldo)}</div>
+        </div>
+      </div>`;
+  },
+
+  /* ---------------- CLIENTES ---------------- */
+  renderClientes(){
+    const list = this.clientesVisibles();
+    const plan = STATE.negocio.plan;
+    const chip = document.getElementById('clientes-plan-chip');
+    chip.className = 'plan-chip' + (plan==='premium'?' premium':'');
+    chip.textContent = plan==='premium' ? 'Premium · ilimitado' : `Gratis · ${STATE.clientes.length}/${LIMITE_PLAN_GRATIS}`;
+    const box = document.getElementById('clientes-list');
+    if(!list.length){
+      box.innerHTML = `<div class="empty">${this.emptyIll()}<p class="lead">Aún no tienes clientes</p><p>Toca el botón ＋ para agregar el primero</p></div>`;
+      return;
+    }
+    box.innerHTML = list.map(cl=>{
+      const p = Loans.activoDeCliente(cl.id);
+      const dias = p ? Loans.diasEnMora(p) : 0;
+      const badge = !p ? `<span class="stamp muted">Sin préstamo</span>` : dias>0 ? `<span class="stamp danger">${dias}d mora</span>` : `<span class="stamp ok">Al día</span>`;
+      return `
+      <div class="list-item" onclick="UI.openClienteDetalle('${cl.id}')">
+        <div class="avatar">${cl.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info">
+          <div class="name">${cl.nombre}</div>
+          <div class="meta">${badge}${cl.zona? ' · '+cl.zona:''}</div>
+        </div>
+        <div class="right"><div class="amount">${p?fmt(p.saldo):'—'}</div></div>
+      </div>`;
+    }).join('');
+  },
+  filterClients(term){
+    term = term.toLowerCase();
+    const list = this.clientesVisibles().filter(c=>c.nombre.toLowerCase().includes(term));
+    const box = document.getElementById('clientes-list');
+    box.innerHTML = list.map(cl=>{
+      const p = Loans.activoDeCliente(cl.id);
+      return `<div class="list-item" onclick="UI.openClienteDetalle('${cl.id}')">
+        <div class="avatar">${cl.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info"><div class="name">${cl.nombre}</div><div class="meta">${cl.zona||''}</div></div>
+        <div class="right"><div class="amount">${p?fmt(p.saldo):'—'}</div></div>
+      </div>`;
+    }).join('') || `<div class="empty"><p>No encontramos a nadie con ese nombre</p></div>`;
+  },
+
+  showClientForm(){
+    const plan = STATE.negocio.plan;
+    if(plan!=='premium' && STATE.clientes.length >= LIMITE_PLAN_GRATIS){
+      this.showUpsell('Llegaste al límite de 10 clientes del plan gratis. Pasa a Premium para agregar clientes sin límite.');
+      return;
+    }
+    const u = Auth.currentUser();
+    const cobradores = STATE.usuarios;
+    this.openModal(`
+      <div class="modal-title">Nuevo cliente</div>
+      <div class="field"><label>Nombre completo</label><input type="text" id="cf-nombre" placeholder="Ej: María González"></div>
+      <div class="field"><label>Teléfono</label><input type="tel" id="cf-telefono" placeholder="300 000 0000"></div>
+      <div class="field"><label>Dirección</label><input type="text" id="cf-direccion" placeholder="Calle / barrio"></div>
+      <div class="field"><label>Zona / ruta</label><input type="text" id="cf-zona" placeholder="Ej: Centro, Ruta 1"></div>
+      <div class="field"><label>Cobrador asignado</label>
+        <select id="cf-cobrador">
+          ${cobradores.map(c=>`<option value="${c.id}" ${c.id===u.id?'selected':''}>${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="UI.submitClientForm()">Guardar cliente</button>
+    `);
+  },
+  showUpsell(mensaje){
+    const esAdmin = Auth.currentUser().rol === 'admin';
+    this.openModal(`
+      <div class="center" style="padding:6px 0 4px;">${icon('sparkle',34)}</div>
+      <div class="modal-title center">Pasa a Premium</div>
+      <p class="hint center" style="font-size:13px;">${mensaje}</p>
+      ${esAdmin
+        ? `<button class="btn btn-gold" onclick="UI.activarPremiumDemo()">Activar Premium</button>`
+        : `<p class="hint center">Pídele a tu administrador que active el plan Premium desde Más → Plan.</p>`}
+      <button class="btn btn-outline" style="margin-top:8px;" onclick="UI.closeModal()">Ahora no</button>
+    `);
+  },
+  async activarPremiumDemo(){
+    try{
+      const { negocio } = await Api.actualizarNegocio({ plan: 'premium' });
+      STATE.negocio = negocio; cacheState();
+      this.closeModal();
+      this.toast('Premium activado ✓');
+      this.goto(this.currentView);
+    } catch(e){ this.toast(e.message); }
+  },
+  async submitClientForm(){
+    const nombre = document.getElementById('cf-nombre').value.trim();
+    if(!nombre){ this.toast('Escribe el nombre del cliente'); return; }
+    const cliente = {
+      nombre,
+      telefono: document.getElementById('cf-telefono').value.trim(),
+      direccion: document.getElementById('cf-direccion').value.trim(),
+      zona: document.getElementById('cf-zona').value.trim(),
+      cobradorId: document.getElementById('cf-cobrador').value
+    };
+    try{
+      const { cliente: creado } = await Api.crearCliente(cliente);
+      await this.refreshState();
+      this.closeModal();
+      this.toast('Cliente guardado');
+      this.goto(this.currentView);
+      this.openClienteDetalle(creado.id);
+    } catch(e){
+      if(e.status === 402){ this.closeModal(); this.showUpsell(e.message); }
+      else { this.toast(e.message); }
+    }
+  },
+
+  openClienteDetalle(clienteId){
+    this.currentClienteId = clienteId;
+    const cl = STATE.clientes.find(c=>c.id===clienteId);
+    const prestamos = Loans.deCliente(clienteId).sort((a,b)=>b.fechaInicio.localeCompare(a.fechaInicio));
+    const cobrador = STATE.usuarios.find(u=>u.id===cl.cobradorId);
+    let html = `
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="avatar" style="width:52px;height:52px;font-size:19px;">${cl.nombre.slice(0,1).toUpperCase()}</div>
+          <div><div style="font-weight:700; font-size:17px;">${cl.nombre}</div>
+          <div class="hint" style="margin:0;">${cl.telefono||'Sin teléfono'} · ${cobrador?cobrador.nombre:'Sin asignar'}</div></div>
+        </div>
+        <hr class="sep">
+        <div class="hint" style="margin:0 0 4px;">${icon('pin',13)} ${cl.direccion||'Sin dirección'} ${cl.zona?('· '+cl.zona):''}</div>
+        <div class="btn-row" style="margin-top:10px;">
+          ${cl.telefono?`<a class="btn btn-outline btn-sm" href="https://wa.me/${cl.telefono.replace(/[^0-9]/g,'')}" target="_blank">${icon('whatsapp',14)} WhatsApp</a>`:''}
+          <button class="btn btn-outline btn-sm" onclick="UI.editClient('${cl.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="UI.deleteClient('${cl.id}')">Eliminar</button>
+        </div>
+      </div>`;
+
+    const activo = prestamos.find(p=>p.estado==='activo');
+    if(activo){
+      const dias = Loans.diasEnMora(activo);
+      html += `
+      <div class="section-title">Préstamo activo</div>
+      <div class="card">
+        <div class="row-between"><span class="hint" style="margin:0;">Saldo pendiente</span>${dias>0?`<span class="stamp danger">${dias}d mora</span>`:`<span class="stamp ok">Al día</span>`}</div>
+        <div style="font-family:var(--font-mono); font-size:27px; font-weight:700; margin:4px 0 10px;">${fmt(activo.saldo)}</div>
+        <div class="receipt-row"><span>Monto prestado</span><span>${fmt(activo.monto)}</span></div>
+        <div class="receipt-row"><span>Modo de interés</span><span>${({fijo:'Fijo',recalculado:'Recalculado',capitalizacion:'Capitalización'})[activo.modoInteres]}</span></div>
+        <div class="receipt-row"><span>Tasa mensual</span><span>${activo.tasa}%</span></div>
+        <div class="receipt-row"><span>Frecuencia</span><span>${activo.frecuencia}</span></div>
+        <div class="receipt-row"><span>Cuota</span><span>${fmt(activo.cuota)}</span></div>
+        <div class="receipt-row"><span>Cuotas pagadas</span><span>${activo.cuotasPagadas} / ${activo.numCuotas}</span></div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="UI.openCobroFlow('${activo.id}')">${icon('cash',16)} Registrar cobro</button>
+        </div>
+        <button class="btn btn-outline" style="margin-top:8px;" onclick="UI.showDocumento('${activo.id}')">${icon('doc',16)} Generar pagaré</button>
+      </div>`;
+    } else {
+      html += `
+      <div class="section-title">Préstamo</div>
+      <div class="card center">
+        <p class="hint" style="margin-top:0;">Este cliente no tiene un préstamo activo</p>
+        <button class="btn btn-gold" onclick="UI.showLoanForm('${cl.id}')">${icon('plus',16)} Crear préstamo</button>
+      </div>`;
+    }
+
+    const historial = STATE.cobros.filter(c=>c.clienteId===clienteId).sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,10);
+    html += `<div class="section-title">Historial de cobros</div>`;
+    html += historial.length ? historial.map(c=>`
+      <div class="list-item" onclick="UI.showReceipt('${c.id}')">
+        <div class="avatar" style="background:var(--success-pale); color:var(--success);">${icon('check',16)}</div>
+        <div class="info"><div class="name">${fmt(c.monto)}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}</div></div>
+        <div class="right small-link">Ver recibo</div>
+      </div>`).join('') : `<div class="empty" style="padding:20px;"><p>Sin cobros registrados todavía</p></div>`;
+
+    document.getElementById('cliente-detalle-content').innerHTML = html;
+    this.goto('cliente-detalle');
+  },
+
+  editClient(id){
+    const cl = STATE.clientes.find(c=>c.id===id);
+    this.openModal(`
+      <div class="modal-title">Editar cliente</div>
+      <div class="field"><label>Nombre</label><input type="text" id="ec-nombre" value="${cl.nombre}"></div>
+      <div class="field"><label>Teléfono</label><input type="tel" id="ec-telefono" value="${cl.telefono||''}"></div>
+      <div class="field"><label>Dirección</label><input type="text" id="ec-direccion" value="${cl.direccion||''}"></div>
+      <div class="field"><label>Zona</label><input type="text" id="ec-zona" value="${cl.zona||''}"></div>
+      <div class="field"><label>Cobrador</label>
+        <select id="ec-cobrador">${STATE.usuarios.map(u=>`<option value="${u.id}" ${u.id===cl.cobradorId?'selected':''}>${u.nombre}</option>`).join('')}</select>
+      </div>
+      <button class="btn btn-primary" onclick="UI.saveClientEdit('${id}')">Guardar cambios</button>
+    `);
+  },
+  async saveClientEdit(id){
+    const patch = {
+      nombre: document.getElementById('ec-nombre').value.trim(),
+      telefono: document.getElementById('ec-telefono').value.trim(),
+      direccion: document.getElementById('ec-direccion').value.trim(),
+      zona: document.getElementById('ec-zona').value.trim(),
+      cobradorId: document.getElementById('ec-cobrador').value
+    };
+    try{
+      await Api.editarCliente(id, patch);
+      await this.refreshState();
+      this.closeModal();
+      this.toast('Cliente actualizado');
+      this.openClienteDetalle(id);
+    } catch(e){ this.toast(e.message); }
+  },
+  async deleteClient(id){
+    if(!confirm('¿Eliminar este cliente y sus préstamos asociados?')) return;
+    try{
+      await Api.eliminarCliente(id);
+      await this.refreshState();
+      this.toast('Cliente eliminado');
+      this.goto('clientes');
+    } catch(e){ this.toast(e.message); }
+  },
+
+  /* ---------------- PRÉSTAMOS ---------------- */
+  showLoanForm(clienteId){
+    this.openModal(`
+      <div class="modal-title">Nuevo préstamo</div>
+      <div class="field"><label>Monto prestado</label><input type="number" id="lf-monto" placeholder="500000"></div>
+      <div class="field"><label>Frecuencia de cobro</label>
+        <select id="lf-frecuencia">
+          <option value="diario">Diario</option>
+          <option value="semanal">Semanal</option>
+          <option value="quincenal">Quincenal</option>
+          <option value="mensual">Mensual</option>
+        </select>
+      </div>
+      <div class="field"><label>Número de cuotas</label><input type="number" id="lf-cuotas" placeholder="20"></div>
+      <div class="field"><label>Modo de interés</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'lf-modo','fijo'); UI.updateModoHint();">Fijo</button>
+          <button type="button" onclick="UI.segPick(this,'lf-modo','recalculado'); UI.updateModoHint();">Recalculado</button>
+          <button type="button" onclick="UI.segPick(this,'lf-modo','capitalizacion'); UI.updateModoHint();">Capitaliz.</button>
+        </div>
+        <input type="hidden" id="lf-modo" value="fijo">
+        <div class="hint" id="lf-modo-hint">Interés simple: se calcula una sola vez sobre el monto, prorrateado según el plazo del crédito.</div>
+      </div>
+      <div class="field">
+        <label>Tasa de interés mensual (%)</label>
+        <input type="number" step="1" min="0" inputmode="numeric" id="lf-tasa" placeholder="20" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        <div class="hint">El interés siempre se cotiza mensual. Recauda lo ajusta automáticamente según la frecuencia y el número de cuotas.</div>
+      </div>
+      <div class="field">
+        <div class="hint" id="lf-preview">Completa los datos para ver el cálculo</div>
+      </div>
+      <button class="btn btn-primary" onclick="UI.submitLoanForm('${clienteId}')">Crear préstamo</button>
+    `);
+    ['lf-monto','lf-tasa','lf-cuotas'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', ()=>UI.updateLoanPreview());
+    });
+    document.getElementById('lf-frecuencia').addEventListener('change', ()=>UI.updateLoanPreview());
+  },
+  updateModoHint(){
+    const modo = document.getElementById('lf-modo').value;
+    const hint = document.getElementById('lf-modo-hint');
+    if(modo==='fijo'){
+      hint.textContent = 'Interés simple: se calcula una sola vez sobre el monto, prorrateado según el plazo del crédito.';
+    } else if(modo==='recalculado'){
+      hint.textContent = 'Interés sobre saldo: cada cuota se calcula sobre lo que el cliente aún debe. Normalmente sale un poco más barato que el fijo.';
+    } else {
+      hint.textContent = 'Interés compuesto: se capitaliza en cada cuota sobre el saldo. En plazos largos el costo puede crecer con fuerza.';
+    }
+    this.updateLoanPreview();
+  },
+  updateLoanPreview(){
+    const monto = Number(document.getElementById('lf-monto').value)||0;
+    const tasa = Number(document.getElementById('lf-tasa').value)||0;
+    const cuotas = Number(document.getElementById('lf-cuotas').value)||0;
+    const modo = document.getElementById('lf-modo').value;
+    const frecuencia = document.getElementById('lf-frecuencia').value;
+    const prev = document.getElementById('lf-preview');
+    if(monto>0 && cuotas>0){
+      const {total, cuota} = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
+      let html = `Total a pagar: <b>${fmt(total)}</b> · Cuota: <b>${fmt(cuota)}</b>`;
+      if(total > monto*5){
+        html += `<br><span style="color:var(--red-700); font-weight:600;">⚠ El total sería más de 5 veces el monto prestado. Confirma que la tasa y el número de cuotas sean los que quieres.</span>`;
+      }
+      prev.innerHTML = html;
+    } else { prev.textContent = 'Completa los datos para ver el cálculo'; }
+  },
+  async submitLoanForm(clienteId){
+    const monto = Number(document.getElementById('lf-monto').value);
+    const tasa = Number(document.getElementById('lf-tasa').value)||0;
+    const numCuotas = Number(document.getElementById('lf-cuotas').value);
+    const frecuencia = document.getElementById('lf-frecuencia').value;
+    const modo = document.getElementById('lf-modo').value;
+    if(!monto || !numCuotas){ this.toast('Ingresa el monto y las cuotas'); return; }
+    try{
+      await Api.crearPrestamo({ clienteId, monto, tasa, numCuotas, modo, frecuencia });
+      await this.refreshState();
+      this.closeModal();
+      this.toast('Préstamo creado');
+      this.openClienteDetalle(clienteId);
+    } catch(e){ this.toast(e.message); }
+  },
+
+  /* ---------------- FLUJO DE COBRO (3 toques) ---------------- */
+  openCobroFlow(prestamoId){
+    if(!prestamoId){
+      const activos = STATE.prestamos.filter(p=>p.estado==='activo' && this.clientesVisibles().some(c=>c.id===p.clienteId));
+      this.openModal(`
+        <div class="modal-title">¿A quién le vas a cobrar?</div>
+        ${activos.length ? activos.map(p=>{
+          const cl = STATE.clientes.find(c=>c.id===p.clienteId);
+          return `<div class="list-item" onclick="UI.openCobroFlow('${p.id}')">
+            <div class="avatar">${cl.nombre.slice(0,1).toUpperCase()}</div>
+            <div class="info"><div class="name">${cl.nombre}</div><div class="meta">Cuota ${fmt(p.cuota)}</div></div>
+            <div class="right amount">${fmt(p.saldo)}</div>
+          </div>`;
+        }).join('') : `<div class="empty"><p>No hay préstamos activos</p></div>`}
+      `);
+      return;
+    }
+    const p = STATE.prestamos.find(x=>x.id===prestamoId);
+    const cl = STATE.clientes.find(c=>c.id===p.clienteId);
+    this.openModal(`
+      <div class="modal-title">Cobrar a ${cl.nombre}</div>
+      <div class="field"><label>Monto a cobrar</label><input type="number" id="pay-monto" value="${Math.min(p.cuota,p.saldo)}"></div>
+      <div class="field"><label>Método</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'pay-metodo','efectivo')">Efectivo</button>
+          <button type="button" onclick="UI.segPick(this,'pay-metodo','transferencia')">Transferencia</button>
+        </div>
+        <input type="hidden" id="pay-metodo" value="efectivo">
+      </div>
+      <div class="field">
+        <label>Firma del cliente (opcional)</label>
+        <div class="sig-pad-wrap">
+          <canvas id="sig-canvas"></canvas>
+          <button type="button" class="sig-clear" onclick="SignaturePad.clear()">Limpiar</button>
+        </div>
+      </div>
+      <div class="hint">Saldo actual: ${fmt(p.saldo)}</div>
+      <button class="btn btn-primary" style="margin-top:14px;" onclick="UI.confirmCobro('${p.id}')">${icon('check',16)} Registrar cobro</button>
+    `);
+    requestAnimationFrame(()=>SignaturePad.mount(document.getElementById('sig-canvas')));
+  },
+  async confirmCobro(prestamoId){
+    const monto = Number(document.getElementById('pay-monto').value);
+    const metodo = document.getElementById('pay-metodo').value;
+    if(!monto || monto<=0){ this.toast('Ingresa un monto válido'); return; }
+    const firma = SignaturePad.dataURL();
+    try{
+      const { cobro } = await Api.registrarCobro({ prestamoId, monto, metodo, firma });
+      await this.refreshState();
+      this.toast('Cobro registrado ✓');
+      this.showReceipt(cobro.id);
+      if(this.currentView==='cliente-detalle' && this.currentClienteId) this.openClienteDetalle(this.currentClienteId);
+      else if(this.currentView==='dashboard') this.renderDashboard();
+    } catch(e){ this.toast(e.message); }
+  },
+
+  showReceipt(cobroId){
+    const c = STATE.cobros.find(x=>x.id===cobroId);
+    const p = STATE.prestamos.find(x=>x.id===c.prestamoId);
+    const cl = STATE.clientes.find(x=>x.id===c.clienteId);
+    const cobrador = STATE.usuarios.find(u=>u.id===c.cobradorId);
+    const html = `
+      <div class="receipt">
+        <div class="receipt-head">
+          <div class="biz">${STATE.negocio.nombre}</div>
+          <div class="hint" style="color:#fff; opacity:.8; margin:2px 0 0;">Recibo de pago</div>
+          <div class="amt">${fmt(c.monto)}</div>
+        </div>
+        <div class="receipt-perf"></div>
+        <div class="receipt-body">
+          <div class="receipt-row"><span>Cliente</span><span>${cl.nombre}</span></div>
+          <div class="receipt-row"><span>Fecha</span><span>${fmtDate(c.fecha)}</span></div>
+          <div class="receipt-row"><span>Método</span><span>${c.metodo}</span></div>
+          <div class="receipt-row"><span>Cobrador</span><span>${cobrador?cobrador.nombre:'—'}</span></div>
+          <div class="receipt-row"><span>Saldo restante</span><span>${fmt(p?p.saldo:0)}</span></div>
+        </div>
+        ${c.firma ? `<div class="receipt-sig"><img src="${c.firma}"><div class="cap">Firma del cliente</div></div>` : ''}
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="window.print()">${icon('print',16)} Imprimir</button>
+        <a class="btn btn-primary" style="text-decoration:none;" target="_blank"
+           href="https://wa.me/${(cl.telefono||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Recibo de pago: '+fmt(c.monto)+' - '+STATE.negocio.nombre+' - '+fmtDate(c.fecha))}">
+           ${icon('whatsapp',16)} Enviar</a>
+      </div>
+    `;
+    this.openModal(html);
+  },
+
+  /* ---------------- DOCUMENTO: PAGARÉ ---------------- */
+  showDocumento(prestamoId){
+    const p = STATE.prestamos.find(x=>x.id===prestamoId);
+    const cl = STATE.clientes.find(c=>c.id===p.clienteId);
+    const html = `
+      <div class="doc-paper">
+        <h3>Pagaré</h3>
+        <div class="doc-sub">${STATE.negocio.nombre}</div>
+        <p>Por medio del presente documento, yo <b>${cl.nombre}</b>, identificado(a) con cédula de ciudadanía, declaro deber y pagar incondicionalmente a <b>${STATE.negocio.nombre}</b> la suma de <b>${fmt(p.total)}</b>, correspondiente a un préstamo recibido el <b>${fmtDate(p.fechaInicio)}</b>.</p>
+        <p>Este monto se pagará en <b>${p.numCuotas}</b> cuotas de frecuencia <b>${p.frecuencia}</b> por valor de <b>${fmt(p.cuota)}</b> cada una, hasta cancelar la totalidad de la deuda.</p>
+        <p>En caso de incumplimiento, acepto las acciones de cobro que la ley permita.</p>
+        <div class="doc-sign-line">Firma de ${cl.nombre}</div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="window.print()">${icon('print',16)} Imprimir pagaré</button>
+    `;
+    this.openModal(html);
+  },
+
+  /* ---------------- RUTAS ---------------- */
+  renderRutas(){
+    const clientes = this.clientesVisibles();
+    const zonas = [...new Set(clientes.map(c=>c.zona).filter(Boolean))];
+    const filterBox = document.getElementById('rutas-zona-filter');
+    filterBox.innerHTML = `<button class="chip active" onclick="UI.filterRuta('',this)">Todas</button>` +
+      zonas.map(z=>`<button class="chip" onclick="UI.filterRuta('${z}',this)">${z}</button>`).join('');
+    this.paintRutaList(clientes);
+  },
+  filterRuta(zona, btn){
+    [...btn.parentElement.children].forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const clientes = this.clientesVisibles().filter(c=> zona? c.zona===zona : true);
+    this.paintRutaList(clientes);
+  },
+  paintRutaList(clientes){
+    const box = document.getElementById('rutas-list');
+    if(!clientes.length){ box.innerHTML = `<div class="empty">${this.emptyIll()}<p>No hay clientes en esta zona</p></div>`; return; }
+    box.innerHTML = clientes.map(cl=>{
+      const p = Loans.activoDeCliente(cl.id);
+      const dias = p ? Loans.diasEnMora(p) : 0;
+      const dirQuery = encodeURIComponent((cl.direccion||cl.nombre)+' '+(cl.zona||''));
+      return `
+      <div class="list-item">
+        <div class="avatar">${cl.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info" onclick="UI.openClienteDetalle('${cl.id}')">
+          <div class="name">${cl.nombre}</div>
+          <div class="meta">${cl.direccion||'Sin dirección'} ${dias>0?`· <span style="color:var(--red-700); font-weight:600;">${dias}d mora</span>`:''}</div>
+        </div>
+        <a class="btn btn-outline btn-sm" style="text-decoration:none;" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${dirQuery}">${icon('compass',16)}</a>
+      </div>`;
+    }).join('');
+  },
+
+  /* ---------------- REPORTES ---------------- */
+  renderReportes(){
+    const t = Reports.totales();
+    document.getElementById('rep-capital').textContent = fmt(t.capital);
+    document.getElementById('rep-interes').textContent = fmt(t.interes);
+    document.getElementById('rep-recuperado').textContent = fmt(t.recuperado);
+    document.getElementById('rep-mora').textContent = t.morPct+'%';
+
+    const dias = Payments.ultimosNDias(7);
+    const max = Math.max(1, ...dias.map(d=>d.total));
+    document.getElementById('rep-chart-wrap').innerHTML = `
+      <div style="display:flex; align-items:flex-end; gap:8px; height:110px;">
+        ${dias.map(d=>`
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+            <div style="width:100%; max-width:26px; background:linear-gradient(180deg,var(--green-500),var(--green-700)); border-radius:5px 5px 2px 2px; height:${Math.max(4,(d.total/max)*82)}px;"></div>
+            <div style="font-size:9.5px; color:var(--muted); margin-top:6px; text-transform:capitalize;">${d.dow}</div>
+          </div>`).join('')}
+      </div>`;
+
+    const box = document.getElementById('rep-cobradores');
+    const cobradores = STATE.usuarios;
+    box.innerHTML = cobradores.map(u=>{
+      const misClientes = STATE.clientes.filter(c=>c.cobradorId===u.id);
+      const cobrado = STATE.cobros.filter(c=>c.cobradorId===u.id).reduce((s,c)=>s+c.monto,0);
+      return `<div class="list-item">
+        <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info"><div class="name">${u.nombre}</div><div class="meta">${misClientes.length} clientes</div></div>
+        <div class="right amount">${fmt(cobrado)}</div>
+      </div>`;
+    }).join('');
+  },
+
+  /* ---------------- PLAN (Más) ---------------- */
+  renderPlanCard(){
+    const plan = STATE.negocio.plan;
+    const esAdmin = Auth.currentUser().rol === 'admin';
+    const box = document.getElementById('plan-card');
+    if(plan==='premium'){
+      box.innerHTML = `
+        <div class="row-between">
+          <div><span class="plan-chip premium">Premium</span><p class="hint" style="margin:8px 0 0;">Clientes ilimitados y todas las funciones activas.</p></div>
+        </div>`;
+    } else {
+      box.innerHTML = `
+        <div class="row-between">
+          <div><span class="plan-chip">Gratis</span><p class="hint" style="margin:8px 0 0;">Hasta ${LIMITE_PLAN_GRATIS} clientes. Pasa a Premium para clientes ilimitados.</p></div>
+        </div>
+        ${esAdmin ? `<button class="btn btn-gold" style="margin-top:10px;" onclick="UI.activarPremiumDemo()">${icon('sparkle',16)} Activar Premium</button>`
+                   : `<p class="hint" style="margin-top:10px;">Solo un administrador puede activar Premium.</p>`}`;
+    }
+  },
+
+  /* ---------------- EQUIPO (Más) ---------------- */
+  renderEquipo(){
+    const esAdmin = Auth.currentUser().rol === 'admin';
+    const box = document.getElementById('equipo-list');
+    box.innerHTML = STATE.usuarios.map(u=>`
+      <div class="list-item">
+        <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info"><div class="name">${u.nombre}</div><div class="meta">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN'}</div></div>
+      </div>
+    `).join('');
+    const addBtn = document.getElementById('btn-agregar-cobrador');
+    if(addBtn) addBtn.style.display = esAdmin ? '' : 'none';
+  }
+};
+
+document.addEventListener('DOMContentLoaded', ()=>UI.init());
+
+window.addEventListener('popstate', ()=>{
+  UI._modalHistoryPushed = false;
+  UI._hideModal();
+});
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && document.getElementById('modal-overlay').classList.contains('active')){
+    UI.closeModal();
+  }
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{ /* si falla, la app sigue funcionando en línea */ });
+  });
+}
+</script>
+</body>
+</html>
