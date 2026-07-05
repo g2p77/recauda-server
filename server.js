@@ -245,6 +245,11 @@ function serveStatic(req, res, pathname){
    Rutas de la API
    --------------------------------------------------------------- */
 async function api(req, res, pathname, method){
+  // Público: marca del negocio para la pantalla de inicio de sesión
+  if(pathname === '/api/branding' && method === 'GET'){
+    return send(res, 200, { nombre: DB.negocio.nombre, logo: DB.negocio.logo });
+  }
+
   // Público: lista de perfiles para la pantalla de inicio de sesión
   if(pathname === '/api/team' && method === 'GET'){
     return send(res, 200, DB.usuarios.map(publicUser));
@@ -366,7 +371,8 @@ async function api(req, res, pathname, method){
     if(!monto || monto<=0) return send(res, 400, { error: 'Monto inválido' });
     const cobro = {
       id: uid('c'), prestamoId: prestamo.id, clienteId: prestamo.clienteId, monto,
-      fecha: new Date().toISOString(), cobradorId: me.id, metodo: body.metodo || 'efectivo', firma: body.firma || null
+      fecha: new Date().toISOString(), cobradorId: me.id, metodo: body.metodo || 'efectivo',
+      firma: body.firma || null, comprobante: body.comprobante || null
     };
     DB.cobros.push(cobro);
     prestamo.saldo = Math.max(0, prestamo.saldo - monto);
