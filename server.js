@@ -318,10 +318,10 @@ async function api(req, res, pathname, method){
   }
 
   if(pathname.startsWith('/api/clientes/') && (method === 'PUT' || method === 'DELETE')){
+    if(me.rol !== 'admin') return send(res, 403, { error: 'Solo un administrador puede editar o eliminar clientes' });
     const id = pathname.split('/')[3];
     const cliente = DB.clientes.find(c=>c.id===id);
     if(!cliente) return send(res, 404, { error: 'Cliente no encontrado' });
-    if(me.rol !== 'admin' && cliente.cobradorId !== me.id) return send(res, 403, { error: 'No autorizado' });
     if(method === 'DELETE'){
       DB.clientes = DB.clientes.filter(c=>c.id!==id);
       DB.prestamos = DB.prestamos.filter(p=>p.clienteId!==id);
