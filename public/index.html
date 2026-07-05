@@ -343,10 +343,10 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
   <!-- ============ LOGIN VIEW ============ -->
   <div class="view active" id="view-login" style="display:flex; flex-direction:column; min-height:100vh; justify-content:center; padding:28px;">
     <div style="text-align:center; margin-bottom:30px;">
-      <div style="width:66px;height:66px;border-radius:18px;background:var(--gold-600);display:flex;align-items:center;justify-content:center;margin:0 auto 16px; transform:rotate(-4deg); box-shadow:var(--shadow-lift);">
+      <div id="login-logo" style="width:66px;height:66px;border-radius:18px;background:var(--gold-600);display:flex;align-items:center;justify-content:center;margin:0 auto 16px; transform:rotate(-4deg); box-shadow:var(--shadow-lift); overflow:hidden;">
         <span style="font-family:var(--font-display); font-weight:700; font-size:29px; color:var(--green-950);">R</span>
       </div>
-      <h1 style="font-family:var(--font-display); font-size:25px; margin:0; font-weight:600;">Recauda</h1>
+      <h1 id="login-nombre" style="font-family:var(--font-display); font-size:25px; margin:0; font-weight:600;">Recauda</h1>
       <p style="color:var(--muted); font-size:13.5px; margin-top:5px;">Cada cobro, cada cliente, cada peso — en orden.</p>
     </div>
     <div id="login-users" style="margin-bottom:14px;"></div>
@@ -457,7 +457,24 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
             <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Recuperado total</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-recuperado">$0</div></div>
             <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">% en mora</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-mora">0%</div></div>
           </div>
-          <div class="section-title">Últimos 7 días</div>
+          <div class="section-title">Recaudo por método de pago</div>
+          <div class="stat-grid gap-8">
+            <div class="card flat" style="text-align:center;">
+              <div class="hint" style="margin:0;">💵 Efectivo</div>
+              <div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-efectivo">$0</div>
+            </div>
+            <div class="card flat" style="text-align:center;">
+              <div class="hint" style="margin:0;">🏦 Transferencia</div>
+              <div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-transferencia">$0</div>
+            </div>
+          </div>
+          <div class="section-title">
+            <span style="flex:none;">Recaudo en el tiempo</span>
+            <div class="seg" style="flex:none; width:auto; margin-left:auto;">
+              <button type="button" class="active" onclick="UI.setRepRango('dia', this)" style="padding:5px 12px;">Por día</button>
+              <button type="button" onclick="UI.setRepRango('mes', this)" style="padding:5px 12px;">Por mes</button>
+            </div>
+          </div>
           <div class="card flat" id="rep-chart-wrap" style="padding:16px 14px;"></div>
           <div class="section-title">Por cobrador</div>
           <div id="rep-cobradores"></div>
@@ -629,6 +646,7 @@ const Api = {
     return data;
   },
   team(){ return this.request('GET', '/api/team', undefined, false); },
+  branding(){ return this.request('GET', '/api/branding', undefined, false); },
   login(userId, pin){ return this.request('POST', '/api/login', {userId, pin}, false); },
   state(){ return this.request('GET', '/api/state'); },
   crearUsuario(d){ return this.request('POST', '/api/usuarios', d); },
@@ -727,6 +745,23 @@ const Payments = {
       out.push({fecha:iso, total, dow: d.toLocaleDateString('es-CO',{weekday:'short'})});
     }
     return out;
+  },
+  ultimosNMeses(n){
+    const out = [];
+    for(let i=n-1;i>=0;i--){
+      const d = new Date();
+      d.setMonth(d.getMonth()-i);
+      const ym = d.toISOString().slice(0,7); // YYYY-MM
+      const total = STATE.cobros.filter(c=>c.fecha.slice(0,7)===ym).reduce((s,c)=>s+c.monto,0);
+      out.push({fecha:ym, total, dow: d.toLocaleDateString('es-CO',{month:'short'})});
+    }
+    return out;
+  },
+  porMetodo(cobros){
+    const lista = cobros || STATE.cobros;
+    const efectivo = lista.filter(c=>c.metodo==='efectivo').reduce((s,c)=>s+c.monto,0);
+    const transferencia = lista.filter(c=>c.metodo==='transferencia').reduce((s,c)=>s+c.monto,0);
+    return { efectivo, transferencia };
   }
 };
 
@@ -761,7 +796,8 @@ const Reports = {
     const activos = STATE.prestamos.filter(p=>p.estado==='activo');
     const enMora = activos.filter(p=>Loans.diasEnMora(p) > 0).length;
     const morPct = activos.length ? Math.round((enMora/activos.length)*100) : 0;
-    return {capital, interes, recuperado, morPct};
+    const { efectivo, transferencia } = Payments.porMetodo();
+    return {capital, interes, recuperado, morPct, efectivo, transferencia};
   },
   exportCSV(tipo){
     let rows = [];
@@ -987,6 +1023,64 @@ const SignaturePad = {
   dataURL(){ return this.hasSignature ? this.canvas.toDataURL('image/png') : null; }
 };
 
+/* =========================================================
+   Utilidad genérica: reduce cualquier foto a un tamaño manejable
+   antes de subirla (comprobantes, logo, etc.), sin fallar en silencio.
+   ========================================================= */
+function resizeImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    let settled = false;
+    const done = (fn, val) => { if(settled) return; settled = true; fn(val); };
+    const safety = setTimeout(()=> done(reject, new Error('La imagen tardó demasiado en procesarse. Intenta con otra foto.')), 8000);
+    const reader = new FileReader();
+    reader.onerror = () => { clearTimeout(safety); done(reject, new Error('No se pudo leer la imagen')); };
+    reader.onload = e=>{
+      try{
+        const img = new Image();
+        img.onerror = () => { clearTimeout(safety); done(reject, new Error('El archivo no parece ser una imagen válida')); };
+        img.onload = () => {
+          try{
+            const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.width*scale));
+            canvas.height = Math.max(1, Math.round(img.height*scale));
+            const ctx = canvas.getContext('2d');
+            if(!ctx) throw new Error('Este dispositivo no puede procesar la imagen');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const out = canvas.toDataURL('image/jpeg', quality||0.85);
+            clearTimeout(safety);
+            done(resolve, out);
+          } catch(err){ clearTimeout(safety); done(reject, new Error('No se pudo procesar la imagen: '+err.message)); }
+        };
+        img.src = e.target.result;
+      } catch(err){ clearTimeout(safety); done(reject, new Error('No se pudo procesar la imagen: '+err.message)); }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* =========================================================
+   COMPROBANTE DE TRANSFERENCIA — foto opcional adjunta al cobro
+   ========================================================= */
+const ComprobantePad = {
+  dataUrl: null,
+  reset(){
+    this.dataUrl = null;
+    const prev = document.getElementById('comprobante-preview');
+    if(prev) prev.innerHTML = '';
+  },
+  async handleFile(file){
+    if(!file) return;
+    UI.toast('Preparando comprobante...');
+    try{
+      this.dataUrl = await resizeImageFile(file, 1000, 0.82);
+      const prev = document.getElementById('comprobante-preview');
+      if(prev) prev.innerHTML = `<img src="${this.dataUrl}" style="width:100%; border-radius:10px; margin-top:8px; border:1px solid var(--paper-line);">`;
+      UI.toast('Comprobante listo');
+    } catch(err){ UI.toast(err.message || 'No se pudo procesar el comprobante'); }
+  }
+};
+
 
 /* =========================================================
    UI — navegación, render de vistas y modales
@@ -1053,6 +1147,14 @@ const UI = {
   async renderLogin(){
     document.getElementById('view-login').style.display='flex';
     document.getElementById('shell').style.display='none';
+    Api.branding().then(({nombre, logo})=>{
+      document.getElementById('login-nombre').textContent = nombre || 'Recauda';
+      const box = document.getElementById('login-logo');
+      box.innerHTML = (logo && logo.startsWith('data:'))
+        ? `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;">`
+        : `<span style="font-family:var(--font-display); font-weight:700; font-size:29px; color:var(--green-950);">${(logo||'R').slice(0,2)}</span>`;
+      document.title = nombre || 'Recauda';
+    }).catch(()=>{ /* si no hay conexión, se queda con el nombre genérico */ });
     const wrap = document.getElementById('login-users');
     wrap.innerHTML = `<div class="center hint">Conectando con el servidor...</div>`;
     try{
@@ -1446,7 +1548,7 @@ const UI = {
     html += historial.length ? historial.map(c=>`
       <div class="list-item" onclick="UI.showReceipt('${c.id}')">
         <div class="avatar" style="background:var(--success-pale); color:var(--success);">${icon('check',16)}</div>
-        <div class="info"><div class="name">${fmt(c.monto)}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}</div></div>
+        <div class="info"><div class="name">${fmt(c.monto)}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}${c.comprobante?' · con comprobante':''}</div></div>
         <div class="right small-link">Ver recibo</div>
       </div>`).join('') : `<div class="empty" style="padding:20px;"><p>Sin cobros registrados todavía</p></div>`;
 
@@ -1597,15 +1699,22 @@ const UI = {
     }
     const p = STATE.prestamos.find(x=>x.id===prestamoId);
     const cl = STATE.clientes.find(c=>c.id===p.clienteId);
+    ComprobantePad.reset();
     this.openModal(`
       <div class="modal-title">Cobrar a ${cl.nombre}</div>
       <div class="field"><label>Monto a cobrar</label><input type="number" id="pay-monto" value="${Math.min(p.cuota,p.saldo)}"></div>
       <div class="field"><label>Método</label>
         <div class="seg">
-          <button type="button" class="active" onclick="UI.segPick(this,'pay-metodo','efectivo')">Efectivo</button>
-          <button type="button" onclick="UI.segPick(this,'pay-metodo','transferencia')">Transferencia</button>
+          <button type="button" class="active" onclick="UI.segPick(this,'pay-metodo','efectivo'); UI.toggleComprobanteField('efectivo');">Efectivo</button>
+          <button type="button" onclick="UI.segPick(this,'pay-metodo','transferencia'); UI.toggleComprobanteField('transferencia');">Transferencia</button>
         </div>
         <input type="hidden" id="pay-metodo" value="efectivo">
+      </div>
+      <div class="field" id="comprobante-field" style="display:none;">
+        <label>Foto del comprobante</label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('comprobante-file').click()">${icon('camera',14)} Subir comprobante</button>
+        <input type="file" id="comprobante-file" accept="image/*" style="display:none" onchange="ComprobantePad.handleFile(this.files[0])">
+        <div id="comprobante-preview"></div>
       </div>
       <div class="field">
         <label>Firma del cliente (opcional)</label>
@@ -1619,13 +1728,18 @@ const UI = {
     `);
     requestAnimationFrame(()=>SignaturePad.mount(document.getElementById('sig-canvas')));
   },
+  toggleComprobanteField(metodo){
+    const f = document.getElementById('comprobante-field');
+    if(f) f.style.display = metodo==='transferencia' ? '' : 'none';
+  },
   async confirmCobro(prestamoId){
     const monto = Number(document.getElementById('pay-monto').value);
     const metodo = document.getElementById('pay-metodo').value;
     if(!monto || monto<=0){ this.toast('Ingresa un monto válido'); return; }
     const firma = SignaturePad.dataURL();
+    const comprobante = ComprobantePad.dataUrl;
     try{
-      const { cobro } = await Api.registrarCobro({ prestamoId, monto, metodo, firma });
+      const { cobro } = await Api.registrarCobro({ prestamoId, monto, metodo, firma, comprobante });
       await this.refreshState();
       this.toast('Cobro registrado ✓');
       this.showReceipt(cobro.id);
@@ -1655,6 +1769,7 @@ const UI = {
           <div class="receipt-row"><span>Saldo restante</span><span>${fmt(p?p.saldo:0)}</span></div>
         </div>
         ${c.firma ? `<div class="receipt-sig"><img src="${c.firma}"><div class="cap">Firma del cliente</div></div>` : ''}
+        ${c.comprobante ? `<div class="receipt-sig"><img src="${c.comprobante}" style="max-width:100%; max-height:220px; border-radius:8px;"><div class="cap">Comprobante de transferencia</div></div>` : ''}
       </div>
       <div class="btn-row">
         <button class="btn btn-outline" onclick="window.print()">${icon('print',16)} Imprimir</button>
@@ -1719,23 +1834,35 @@ const UI = {
   },
 
   /* ---------------- REPORTES ---------------- */
+  repRango: 'dia',
+  setRepRango(rango, btn){
+    this.repRango = rango;
+    [...btn.parentElement.children].forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    this.renderReportesChart();
+  },
+  renderReportesChart(){
+    const serie = this.repRango === 'mes' ? Payments.ultimosNMeses(6) : Payments.ultimosNDias(7);
+    const max = Math.max(1, ...serie.map(d=>d.total));
+    document.getElementById('rep-chart-wrap').innerHTML = `
+      <div style="display:flex; align-items:flex-end; gap:8px; height:110px;">
+        ${serie.map(d=>`
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+            <div style="width:100%; max-width:26px; background:linear-gradient(180deg,var(--green-500),var(--green-700)); border-radius:5px 5px 2px 2px; height:${Math.max(4,(d.total/max)*82)}px;" title="${fmt(d.total)}"></div>
+            <div style="font-size:9.5px; color:var(--muted); margin-top:6px; text-transform:capitalize;">${d.dow}</div>
+          </div>`).join('')}
+      </div>`;
+  },
   renderReportes(){
     const t = Reports.totales();
     document.getElementById('rep-capital').textContent = fmt(t.capital);
     document.getElementById('rep-interes').textContent = fmt(t.interes);
     document.getElementById('rep-recuperado').textContent = fmt(t.recuperado);
     document.getElementById('rep-mora').textContent = t.morPct+'%';
+    document.getElementById('rep-efectivo').textContent = fmt(t.efectivo);
+    document.getElementById('rep-transferencia').textContent = fmt(t.transferencia);
 
-    const dias = Payments.ultimosNDias(7);
-    const max = Math.max(1, ...dias.map(d=>d.total));
-    document.getElementById('rep-chart-wrap').innerHTML = `
-      <div style="display:flex; align-items:flex-end; gap:8px; height:110px;">
-        ${dias.map(d=>`
-          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
-            <div style="width:100%; max-width:26px; background:linear-gradient(180deg,var(--green-500),var(--green-700)); border-radius:5px 5px 2px 2px; height:${Math.max(4,(d.total/max)*82)}px;"></div>
-            <div style="font-size:9.5px; color:var(--muted); margin-top:6px; text-transform:capitalize;">${d.dow}</div>
-          </div>`).join('')}
-      </div>`;
+    this.renderReportesChart();
 
     const box = document.getElementById('rep-cobradores');
     const cobradores = STATE.usuarios;
@@ -1789,7 +1916,7 @@ const UI = {
         const cl = STATE.clientes.find(x=>x.id===c.clienteId);
         return `<div class="list-item" onclick="UI.closeModal(); setTimeout(()=>UI.showReceipt('${c.id}'), 250);">
           <div class="avatar" style="background:var(--success-pale); color:var(--success);">${icon('check',15)}</div>
-          <div class="info"><div class="name">${fmt(c.monto)} · ${cl?cl.nombre:'Cliente eliminado'}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}</div></div>
+          <div class="info"><div class="name">${fmt(c.monto)} · ${cl?cl.nombre:'Cliente eliminado'}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}${c.comprobante?' · con comprobante':''}</div></div>
           <div class="right small-link">Ver recibo</div>
         </div>`;
       }).join('') : `<div class="empty" style="padding:16px;"><p>Todavía no ha registrado cobros</p></div>`}
