@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#0F2A22">
-<title>Recauda — Gestión de cobranza</title>
+<title>ZaJu Tech — Gestión de cobranza</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -105,6 +105,23 @@ svg{display:block;}
 .icon-btn svg{width:18px;height:18px;}
 
 .page-header{padding:20px 18px 4px;}
+
+.dash-hero{
+  display:flex; align-items:center; gap:14px; padding:20px 18px 22px;
+  background:var(--green-950); background-image:linear-gradient(160deg, var(--green-700) 0%, var(--green-950) 80%);
+  color:#fff; border-radius:0 0 26px 26px; box-shadow:0 6px 20px rgba(15,42,34,0.25);
+}
+.dash-hero-logo{
+  width:56px; height:56px; border-radius:16px; background:var(--gold-600); color:var(--green-950);
+  display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:700;
+  font-size:22px; flex-shrink:0; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.3); transform:rotate(-3deg);
+}
+.dash-hero-logo img{width:100%; height:100%; object-fit:cover;}
+.dash-hero-text{min-width:0;}
+.dash-hero-biz{font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:.72; font-weight:600; margin-bottom:2px;}
+.dash-hero-text h2{font-family:var(--font-display); font-size:20px; margin:0; font-weight:600; color:#fff;}
+.dash-hero-text p{margin:2px 0 0; font-size:12.5px; opacity:.75;}
+
 .page-header h2{font-family:var(--font-display); font-size:22px; margin:0 0 3px; font-weight:600;}
 .page-header p{margin:0; color:var(--muted); font-size:13px;}
 
@@ -346,7 +363,7 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
       <div id="login-logo" style="width:66px;height:66px;border-radius:18px;background:var(--gold-600);display:flex;align-items:center;justify-content:center;margin:0 auto 16px; transform:rotate(-4deg); box-shadow:var(--shadow-lift); overflow:hidden;">
         <span style="font-family:var(--font-display); font-weight:700; font-size:29px; color:var(--green-950);">R</span>
       </div>
-      <h1 id="login-nombre" style="font-family:var(--font-display); font-size:25px; margin:0; font-weight:600;">Recauda</h1>
+      <h1 id="login-nombre" style="font-family:var(--font-display); font-size:25px; margin:0; font-weight:600;">ZaJu Tech</h1>
       <p style="color:var(--muted); font-size:13.5px; margin-top:5px;">Cada cobro, cada cliente, cada peso — en orden.</p>
     </div>
     <div id="login-users" style="margin-bottom:14px;"></div>
@@ -359,7 +376,7 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
       <div class="brand">
         <div class="logo-badge" id="topbar-logo">R</div>
         <div style="min-width:0;">
-          <h1 id="topbar-title">Recauda</h1>
+          <h1 id="topbar-title">ZaJu Tech</h1>
           <div class="sub" id="topbar-sub">—</div>
         </div>
       </div>
@@ -372,11 +389,15 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
 
       <!-- ---- DASHBOARD ---- -->
       <div class="view" id="view-dashboard">
-        <div class="page-header">
-          <h2 id="dash-greeting">Hola 👋</h2>
-          <p id="dash-date"></p>
+        <div class="dash-hero">
+          <div class="dash-hero-logo" id="dash-hero-logo">Z</div>
+          <div class="dash-hero-text">
+            <div class="dash-hero-biz" id="dash-hero-biz">Mi negocio</div>
+            <h2 id="dash-greeting">Hola 👋</h2>
+            <p id="dash-date"></p>
+          </div>
         </div>
-        <div class="section">
+        <div class="section" style="padding-top:4px;">
           <div id="dash-onboarding"></div>
           <div class="progress-wrap">
             <div class="row-between">
@@ -533,17 +554,17 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
             </div>
             <button class="btn btn-primary" onclick="Config.save()">Guardar cambios</button>
           </div>
+          </div>
 
           <div class="section-title">Recordatorios</div>
           <div class="card">
             <div class="toggle-row">
               <div class="txt">
-                <b>Avisos de cobro pendiente</b>
-                <span>Notifica en este dispositivo mientras la app esté abierta.</span>
+                <b>Avisos de clientes pendientes por pagar</b>
+                <span id="recordatorios-desc">Te avisa todos los días a las 12:00 m. y a las 4:00 p.m. cuántos clientes tienes pendientes por cobrar hoy.</span>
               </div>
               <label class="switch"><input type="checkbox" id="cfg-recordatorios" onchange="Config.toggleRecordatorios(this.checked)"><span class="track"></span><span class="thumb"></span></label>
             </div>
-          </div>
           </div>
 
           <div class="section-title">Equipo de cobradores</div>
@@ -564,7 +585,7 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
             <button class="btn btn-danger" onclick="DataIO.resetAll()">Borrar todos los datos del servidor</button>
           </div>
           </div>
-          <p class="hint center" style="margin:20px 0 4px;">Recauda — hecha con las mejores prácticas de las apps de cobranza para cobradiarios y pagadiarios de Latinoamérica.</p>
+          <p class="hint center" style="margin:20px 0 4px;">ZaJu Tech — hecha con las mejores prácticas de las apps de cobranza para cobradiarios y pagadiarios de Latinoamérica.</p>
         </div>
       </div>
 
@@ -651,12 +672,16 @@ const Api = {
   state(){ return this.request('GET', '/api/state'); },
   crearUsuario(d){ return this.request('POST', '/api/usuarios', d); },
   eliminarUsuario(id){ return this.request('DELETE', '/api/usuarios/'+id); },
+  cambiarPin(id, d){ return this.request('PUT', '/api/usuarios/'+id, d); },
   crearCliente(d){ return this.request('POST', '/api/clientes', d); },
   editarCliente(id, d){ return this.request('PUT', '/api/clientes/'+id, d); },
   eliminarCliente(id){ return this.request('DELETE', '/api/clientes/'+id); },
   crearPrestamo(d){ return this.request('POST', '/api/prestamos', d); },
   registrarCobro(d){ return this.request('POST', '/api/cobros', d); },
   actualizarNegocio(d){ return this.request('PUT', '/api/negocio', d); },
+  vapidKey(){ return this.request('GET', '/api/push/vapid-public-key', undefined, false); },
+  pushSubscribe(subscription){ return this.request('POST', '/api/push/subscribe', { subscription }); },
+  pushUnsubscribe(endpoint){ return this.request('POST', '/api/push/unsubscribe', { endpoint }); },
   exportar(){ return this.request('GET', '/api/export'); },
   importar(d){ return this.request('POST', '/api/import', d); },
   resetear(){ return this.request('DELETE', '/api/reset?confirm=BORRAR'); }
@@ -682,6 +707,16 @@ function fmtDate(d){
   return dt.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric'});
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+// Convierte la llave pública VAPID (texto) al formato binario que pide pushManager.subscribe
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i = 0; i < rawData.length; i++){ outputArray[i] = rawData.charCodeAt(i); }
+  return outputArray;
+}
 
 /* =========================================================
    CÁLCULO DE PRÉSTAMOS (vista previa en el cliente)
@@ -888,7 +923,7 @@ const Config = {
     document.getElementById('cfg-nombre').value = STATE.negocio.nombre;
     document.getElementById('cfg-moneda').value = STATE.negocio.moneda;
     document.getElementById('cfg-logo').value = (STATE.negocio.logo||'').startsWith('data:') ? '' : STATE.negocio.logo;
-    document.getElementById('cfg-recordatorios').checked = !!STATE.negocio.recordatorios;
+    document.getElementById('cfg-recordatorios').checked = localStorage.getItem('recauda_notif_on') === '1';
     this.renderLogoPreview();
   },
   renderLogoPreview(){
@@ -969,18 +1004,33 @@ const Config = {
     } catch(e){ UI.toast(e.message); }
   },
   async toggleRecordatorios(checked){
-    try{
-      const { negocio } = await Api.actualizarNegocio({ recordatorios: checked });
-      STATE.negocio = negocio; cacheState();
-      if(checked && 'Notification' in window){
-        Notification.requestPermission().then(perm=>{
-          if(perm==='granted'){ UI.toast('Recordatorios activados'); new Notification('Recauda', {body:'Te avisaremos aquí sobre cobros pendientes mientras la app esté abierta.'}); }
-          else { UI.toast('Debes permitir notificaciones en el navegador'); }
-        });
-      } else {
-        UI.toast(checked ? 'Recordatorios activados' : 'Recordatorios desactivados');
+    const checkbox = document.getElementById('cfg-recordatorios');
+    if(checked){
+      try{
+        if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+          UI.toast('Este navegador no soporta notificaciones'); if(checkbox) checkbox.checked = false; return;
+        }
+        const permiso = await Notification.requestPermission();
+        if(permiso !== 'granted'){ UI.toast('Debes permitir las notificaciones'); if(checkbox) checkbox.checked = false; return; }
+        const { publicKey } = await Api.vapidKey();
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+        await Api.pushSubscribe(sub.toJSON());
+        localStorage.setItem('recauda_notif_on', '1');
+        UI.toast('Recordatorios activados');
+      } catch(err){
+        UI.toast(err.message || 'No se pudieron activar los recordatorios en este dispositivo');
+        if(checkbox) checkbox.checked = false;
       }
-    } catch(e){ UI.toast(e.message); document.getElementById('cfg-recordatorios').checked = !checked; }
+    } else {
+      try{
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if(sub){ await Api.pushUnsubscribe(sub.endpoint).catch(()=>{}); await sub.unsubscribe(); }
+      } catch(e){ /* si falla, igual apagamos la preferencia local */ }
+      localStorage.removeItem('recauda_notif_on');
+      UI.toast('Recordatorios desactivados');
+    }
   }
 };
 
@@ -1148,12 +1198,12 @@ const UI = {
     document.getElementById('view-login').style.display='flex';
     document.getElementById('shell').style.display='none';
     Api.branding().then(({nombre, logo})=>{
-      document.getElementById('login-nombre').textContent = nombre || 'Recauda';
+      document.getElementById('login-nombre').textContent = nombre || 'ZaJu Tech';
       const box = document.getElementById('login-logo');
       box.innerHTML = (logo && logo.startsWith('data:'))
         ? `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;">`
         : `<span style="font-family:var(--font-display); font-weight:700; font-size:29px; color:var(--green-950);">${(logo||'R').slice(0,2)}</span>`;
-      document.title = nombre || 'Recauda';
+      document.title = nombre || 'ZaJu Tech';
     }).catch(()=>{ /* si no hay conexión, se queda con el nombre genérico */ });
     const wrap = document.getElementById('login-users');
     wrap.innerHTML = `<div class="center hint">Conectando con el servidor...</div>`;
@@ -1244,9 +1294,13 @@ const UI = {
   },
   applyBranding(){
     const logo = STATE.negocio.logo || 'R';
-    const logoBox = document.getElementById('topbar-logo');
-    logoBox.innerHTML = logo.startsWith('data:') ? `<img src="${logo}">` : logo;
+    const logoHtml = logo.startsWith('data:') ? `<img src="${logo}">` : logo;
+    document.getElementById('topbar-logo').innerHTML = logoHtml;
     document.getElementById('topbar-title').textContent = STATE.negocio.nombre;
+    const heroLogo = document.getElementById('dash-hero-logo');
+    if(heroLogo) heroLogo.innerHTML = logoHtml;
+    const heroBiz = document.getElementById('dash-hero-biz');
+    if(heroBiz) heroBiz.textContent = STATE.negocio.nombre;
     const u = Auth.currentUser();
     document.getElementById('topbar-sub').textContent = u ? (u.rol==='admin'?'Administrador · '+u.nombre:'Cobrador · '+u.nombre) : '';
     document.title = STATE.negocio.nombre;
@@ -1329,7 +1383,7 @@ const UI = {
       onboardHtml += `
         <div class="onboard-card">
           <h3>Primeros pasos</h3>
-          <p>Así se arma tu cartera en Recauda, en tres toques.</p>
+          <p>Así se arma tu cartera en ZaJu Tech, en tres toques.</p>
           <div class="onboard-step"><div class="num">1</div><span>Agrega tu primer cliente</span></div>
           <div class="onboard-step"><div class="num">2</div><span>Crea su préstamo y elige el interés</span></div>
           <div class="onboard-step"><div class="num">3</div><span>Registra el cobro cuando te pague</span></div>
@@ -1624,7 +1678,7 @@ const UI = {
       <div class="field">
         <label>Tasa de interés mensual (%)</label>
         <input type="number" step="1" min="0" inputmode="numeric" id="lf-tasa" placeholder="20" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-        <div class="hint">El interés siempre se cotiza mensual. Recauda lo ajusta automáticamente según la frecuencia y el número de cuotas.</div>
+        <div class="hint">El interés siempre se cotiza mensual. ZaJu Tech lo ajusta automáticamente según la frecuencia y el número de cuotas.</div>
       </div>
       <div class="field">
         <div class="hint" id="lf-preview">Completa los datos para ver el cálculo</div>
@@ -1952,12 +2006,34 @@ const UI = {
     box.innerHTML = STATE.usuarios.map(u=>`
       <div class="list-item">
         <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
-        <div class="info"><div class="name">${u.nombre}</div><div class="meta">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN'}</div></div>
-        ${esAdmin && u.id!==miId ? `<button class="btn btn-danger btn-sm" onclick="UI.deleteUsuario('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">Eliminar</button>` : ''}
+        <div class="info"><div class="name">${u.nombre}${u.id===miId?' (tú)':''}</div><div class="meta">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN'}</div></div>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          ${(esAdmin || u.id===miId) ? `<button class="btn btn-outline btn-sm" onclick="UI.showChangePin('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">PIN</button>` : ''}
+          ${esAdmin && u.id!==miId ? `<button class="btn btn-danger btn-sm" onclick="UI.deleteUsuario('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">Eliminar</button>` : ''}
+        </div>
       </div>
     `).join('');
     const addBtn = document.getElementById('btn-agregar-cobrador');
     if(addBtn) addBtn.style.display = esAdmin ? '' : 'none';
+  },
+  showChangePin(id, nombre){
+    this.openModal(`
+      <div class="modal-title">Cambiar PIN de ${nombre}</div>
+      <div class="field"><label>Nuevo PIN (mínimo 4 dígitos, vacío = sin PIN)</label><input type="password" inputmode="numeric" id="np-pin" placeholder="••••"></div>
+      <div class="hint">Dejar este campo vacío quita el PIN — cualquiera podría entrar como ${nombre} sin clave. No se recomienda en un servidor remoto.</div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="UI.submitChangePin('${id}')">Guardar PIN</button>
+    `);
+  },
+  async submitChangePin(id){
+    const pin = document.getElementById('np-pin').value.trim();
+    if(pin && pin.length < 4){ this.toast('El PIN debe tener al menos 4 dígitos'); return; }
+    try{
+      await Api.cambiarPin(id, { pin });
+      await this.refreshState();
+      this.closeModal();
+      this.toast('PIN actualizado');
+      this.renderEquipo();
+    } catch(e){ this.toast(e.message); }
   },
   async deleteUsuario(id, nombre){
     if(!confirm(`¿Eliminar a ${nombre}? Sus clientes asignados pasarán a quedar contigo.`)) return;
