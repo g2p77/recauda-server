@@ -780,6 +780,21 @@ const Reports = {
     a.download = `recauda_${tipo}_${todayISO()}.csv`;
     a.click();
     UI.toast('CSV descargado');
+  },
+  exportCobradorCSV(cobradorId){
+    const u = STATE.usuarios.find(x=>x.id===cobradorId);
+    const rows = [['Fecha','Cliente','Monto','Metodo','Firma']];
+    STATE.cobros.filter(c=>c.cobradorId===cobradorId).sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(c=>{
+      const cl = STATE.clientes.find(x=>x.id===c.clienteId);
+      rows.push([c.fecha.slice(0,10), cl?cl.nombre:'', c.monto, c.metodo, c.firma?'Sí':'No']);
+    });
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `recauda_cobros_${(u?u.nombre:'cobrador').replace(/\s+/g,'_')}_${todayISO()}.csv`;
+    a.click();
+    UI.toast('CSV descargado');
   }
 };
 
@@ -1674,13 +1689,60 @@ const UI = {
     const cobradores = STATE.usuarios;
     box.innerHTML = cobradores.map(u=>{
       const misClientes = STATE.clientes.filter(c=>c.cobradorId===u.id);
-      const cobrado = STATE.cobros.filter(c=>c.cobradorId===u.id).reduce((s,c)=>s+c.monto,0);
-      return `<div class="list-item">
+      const misCobros = STATE.cobros.filter(c=>c.cobradorId===u.id);
+      const cobrado = misCobros.reduce((s,c)=>s+c.monto,0);
+      const ultima = misCobros.length ? misCobros.map(c=>c.fecha).sort().slice(-1)[0] : null;
+      return `<div class="list-item" onclick="UI.showCobradorAudit('${u.id}')">
         <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
-        <div class="info"><div class="name">${u.nombre}</div><div class="meta">${misClientes.length} clientes</div></div>
-        <div class="right amount">${fmt(cobrado)}</div>
+        <div class="info"><div class="name">${u.nombre}</div><div class="meta">${misClientes.length} clientes ${ultima ? '· último cobro '+fmtDate(ultima) : '· sin cobros aún'}</div></div>
+        <div class="right"><div class="amount">${fmt(cobrado)}</div><div class="small-link">Ver detalle</div></div>
       </div>`;
     }).join('');
+  },
+
+  showCobradorAudit(cobradorId){
+    const u = STATE.usuarios.find(x=>x.id===cobradorId);
+    const misClientes = STATE.clientes.filter(c=>c.cobradorId===cobradorId);
+    const misCobros = STATE.cobros.filter(c=>c.cobradorId===cobradorId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    const totalCobrado = misCobros.reduce((s,c)=>s+c.monto,0);
+    const misPrestamosActivos = STATE.prestamos.filter(p=>p.estado==='activo' && misClientes.some(c=>c.id===p.clienteId));
+    const carteraAsignada = misPrestamosActivos.reduce((s,p)=>s+p.saldo,0);
+    const enMora = misPrestamosActivos.filter(p=>Loans.diasEnMora(p)>0).length;
+
+    let html = `
+      <div class="modal-title">${u.nombre}</div>
+      <p class="hint" style="margin-top:-8px;">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN — recomendado ponerle uno'}</p>
+      <div class="stat-grid gap-8">
+        <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Cartera asignada</div><div style="font-family:var(--font-mono);font-weight:700;font-size:16px;margin-top:4px;">${fmt(carteraAsignada)}</div></div>
+        <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Total cobrado (histórico)</div><div style="font-family:var(--font-mono);font-weight:700;font-size:16px;margin-top:4px;">${fmt(totalCobrado)}</div></div>
+        <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Clientes asignados</div><div style="font-family:var(--font-mono);font-weight:700;font-size:16px;margin-top:4px;">${misClientes.length}</div></div>
+        <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Clientes en mora</div><div style="font-family:var(--font-mono);font-weight:700;font-size:16px;margin-top:4px; color:${enMora>0?'var(--red-700)':'inherit'};">${enMora}</div></div>
+      </div>
+      <button class="btn btn-outline gap-8" onclick="Reports.exportCobradorCSV('${cobradorId}')">${icon('doc',15)} Exportar cobros de ${u.nombre.split(' ')[0]} en CSV</button>
+
+      <div class="section-title">Clientes asignados</div>
+      ${misClientes.length ? misClientes.map(cl=>{
+        const p = Loans.activoDeCliente(cl.id);
+        const dias = p ? Loans.diasEnMora(p) : 0;
+        const badge = !p ? `<span class="stamp muted">Sin préstamo</span>` : dias>0 ? `<span class="stamp danger">${dias}d mora</span>` : `<span class="stamp ok">Al día</span>`;
+        return `<div class="list-item" onclick="UI.closeModal(); setTimeout(()=>UI.openClienteDetalle('${cl.id}'), 250);">
+          <div class="avatar">${cl.nombre.slice(0,1).toUpperCase()}</div>
+          <div class="info"><div class="name">${cl.nombre}</div><div class="meta">${badge}</div></div>
+          <div class="right amount">${p?fmt(p.saldo):'—'}</div>
+        </div>`;
+      }).join('') : `<div class="empty" style="padding:16px;"><p>Sin clientes asignados</p></div>`}
+
+      <div class="section-title">Historial de cobros (${misCobros.length})</div>
+      ${misCobros.length ? misCobros.map(c=>{
+        const cl = STATE.clientes.find(x=>x.id===c.clienteId);
+        return `<div class="list-item" onclick="UI.closeModal(); setTimeout(()=>UI.showReceipt('${c.id}'), 250);">
+          <div class="avatar" style="background:var(--success-pale); color:var(--success);">${icon('check',15)}</div>
+          <div class="info"><div class="name">${fmt(c.monto)} · ${cl?cl.nombre:'Cliente eliminado'}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}</div></div>
+          <div class="right small-link">Ver recibo</div>
+        </div>`;
+      }).join('') : `<div class="empty" style="padding:16px;"><p>Todavía no ha registrado cobros</p></div>`}
+    `;
+    this.openModal(html);
   },
 
   /* ---------------- PLAN (Más) ---------------- */
