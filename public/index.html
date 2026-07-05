@@ -632,6 +632,7 @@ const Api = {
   login(userId, pin){ return this.request('POST', '/api/login', {userId, pin}, false); },
   state(){ return this.request('GET', '/api/state'); },
   crearUsuario(d){ return this.request('POST', '/api/usuarios', d); },
+  eliminarUsuario(id){ return this.request('DELETE', '/api/usuarios/'+id); },
   crearCliente(d){ return this.request('POST', '/api/clientes', d); },
   editarCliente(id, d){ return this.request('PUT', '/api/clientes/'+id, d); },
   eliminarCliente(id){ return this.request('DELETE', '/api/clientes/'+id); },
@@ -881,6 +882,8 @@ const Config = {
       const dataUrl = await this.resizeImageToDataURL(file, 256);
       const { negocio } = await Api.actualizarNegocio({ logo: dataUrl });
       STATE.negocio = negocio; cacheState();
+      const campoInicial = document.getElementById('cfg-logo');
+      if(campoInicial) campoInicial.value = ''; // evita que "Guardar cambios" reescriba la imagen con la inicial vieja
       UI.applyBranding(); Config.renderLogoPreview();
       UI.toast('Logo actualizado');
     } catch(err){ UI.toast(err.message || 'No se pudo actualizar el logo'); }
@@ -1814,15 +1817,26 @@ const UI = {
   /* ---------------- EQUIPO (Más) ---------------- */
   renderEquipo(){
     const esAdmin = Auth.currentUser().rol === 'admin';
+    const miId = Auth.currentUser().id;
     const box = document.getElementById('equipo-list');
     box.innerHTML = STATE.usuarios.map(u=>`
       <div class="list-item">
         <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
         <div class="info"><div class="name">${u.nombre}</div><div class="meta">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN'}</div></div>
+        ${esAdmin && u.id!==miId ? `<button class="btn btn-danger btn-sm" onclick="UI.deleteUsuario('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">Eliminar</button>` : ''}
       </div>
     `).join('');
     const addBtn = document.getElementById('btn-agregar-cobrador');
     if(addBtn) addBtn.style.display = esAdmin ? '' : 'none';
+  },
+  async deleteUsuario(id, nombre){
+    if(!confirm(`¿Eliminar a ${nombre}? Sus clientes asignados pasarán a quedar contigo.`)) return;
+    try{
+      await Api.eliminarUsuario(id);
+      await this.refreshState();
+      this.toast('Cobrador eliminado');
+      this.renderEquipo();
+    } catch(e){ this.toast(e.message); }
   }
 };
 
