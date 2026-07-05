@@ -862,16 +862,38 @@ const Config = {
   },
   async subirLogo(file){
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = async e=>{
-      try{
-        const { negocio } = await Api.actualizarNegocio({ logo: e.target.result });
-        STATE.negocio = negocio; cacheState();
-        UI.applyBranding();
-        UI.toast('Logo actualizado');
-      } catch(err){ UI.toast(err.message); }
-    };
-    reader.readAsDataURL(file);
+    if(!file.type.startsWith('image/')){ UI.toast('Elige un archivo de imagen'); return; }
+    UI.toast('Preparando imagen...');
+    try{
+      const dataUrl = await this.resizeImageToDataURL(file, 256);
+      const { negocio } = await Api.actualizarNegocio({ logo: dataUrl });
+      STATE.negocio = negocio; cacheState();
+      UI.applyBranding();
+      UI.toast('Logo actualizado');
+    } catch(err){ UI.toast(err.message || 'No se pudo actualizar el logo'); }
+  },
+  // Reduce cualquier foto (aunque pese varios MB) a un cuadrado pequeño
+  // antes de subirla — un logo no necesita más resolución que esta.
+  resizeImageToDataURL(file, size){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+      reader.onload = e=>{
+        const img = new Image();
+        img.onerror = () => reject(new Error('El archivo no parece ser una imagen válida'));
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          const s = Math.min(img.width, img.height);
+          const sx = (img.width - s)/2, sy = (img.height - s)/2;
+          ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
   },
   async quitarLogo(){
     try{
