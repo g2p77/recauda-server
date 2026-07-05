@@ -1396,6 +1396,7 @@ const UI = {
     const cl = STATE.clientes.find(c=>c.id===clienteId);
     const prestamos = Loans.deCliente(clienteId).sort((a,b)=>b.fechaInicio.localeCompare(a.fechaInicio));
     const cobrador = STATE.usuarios.find(u=>u.id===cl.cobradorId);
+    const esAdmin = Auth.currentUser().rol === 'admin';
     let html = `
       <div class="card">
         <div style="display:flex; align-items:center; gap:12px;">
@@ -1407,8 +1408,8 @@ const UI = {
         <div class="hint" style="margin:0 0 4px;">${icon('pin',13)} ${cl.direccion||'Sin dirección'} ${cl.zona?('· '+cl.zona):''}</div>
         <div class="btn-row" style="margin-top:10px;">
           ${cl.telefono?`<a class="btn btn-outline btn-sm" href="https://wa.me/${cl.telefono.replace(/[^0-9]/g,'')}" target="_blank">${icon('whatsapp',14)} WhatsApp</a>`:''}
-          <button class="btn btn-outline btn-sm" onclick="UI.editClient('${cl.id}')">Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="UI.deleteClient('${cl.id}')">Eliminar</button>
+          ${esAdmin?`<button class="btn btn-outline btn-sm" onclick="UI.editClient('${cl.id}')">Editar</button>`:''}
+          ${esAdmin?`<button class="btn btn-danger btn-sm" onclick="UI.deleteClient('${cl.id}')">Eliminar</button>`:''}
         </div>
       </div>`;
 
@@ -1454,6 +1455,7 @@ const UI = {
   },
 
   editClient(id){
+    if(Auth.currentUser().rol !== 'admin'){ this.toast('Solo un administrador puede editar clientes'); return; }
     const cl = STATE.clientes.find(c=>c.id===id);
     this.openModal(`
       <div class="modal-title">Editar cliente</div>
@@ -1484,6 +1486,7 @@ const UI = {
     } catch(e){ this.toast(e.message); }
   },
   async deleteClient(id){
+    if(Auth.currentUser().rol !== 'admin'){ this.toast('Solo un administrador puede eliminar clientes'); return; }
     if(!confirm('¿Eliminar este cliente y sus préstamos asociados?')) return;
     try{
       await Api.eliminarCliente(id);
