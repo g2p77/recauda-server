@@ -162,12 +162,21 @@ function readBody(req){
   return new Promise((resolve, reject)=>{
     let chunks = [];
     let size = 0;
+    let rejected = false;
     req.on('data', c=>{
+      if(rejected) return;
       size += c.length;
-      if(size > 8*1024*1024){ reject(new Error('Cuerpo demasiado grande')); req.destroy(); return; }
+      if(size > 10*1024*1024){
+        rejected = true;
+        const err = new Error('El archivo o los datos enviados son demasiado grandes (máximo 10MB)');
+        err.tooLarge = true;
+        reject(err);
+        return;
+      }
       chunks.push(c);
     });
     req.on('end', ()=>{
+      if(rejected) return;
       if(!chunks.length) return resolve({});
       try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
       catch(e){ reject(new Error('JSON inválido')); }
@@ -274,6 +283,22 @@ async function api(req, res, pathname, method){
       pinSalt: salt, pinHash: body.pin ? hashPin(body.pin, salt) : null
     };
     DB.usuarios.push(nuevo); saveDB();
+    return send(res, 200, { usuarios: DB.usuarios.map(publicUser) });
+  }
+
+  if(pathname.startsWith('/api/usuarios/') && method === 'DELETE'){
+    if(me.rol !== 'admin') return send(res, 403, { error: 'Solo un administrador puede eliminar cobradores' });
+    const id = pathname.split('/')[3];
+    if(id === me.id) return send(res, 400, { error: 'No puedes eliminar tu propio usuario mientras tienes la sesión abierta' });
+    const usuario = DB.usuarios.find(u=>u.id===id);
+    if(!usuario) return send(res, 404, { error: 'Usuario no encontrado' });
+    if(usuario.rol === 'admin' && DB.usuarios.filter(u=>u.rol==='admin').length <= 1){
+      return send(res, 400, { error: 'Debe quedar al menos un administrador' });
+    }
+    DB.usuarios = DB.usuarios.filter(u=>u.id!==id);
+    // sus clientes no se eliminan: quedan reasignados a quien borra el cobrador
+    DB.clientes.forEach(c=>{ if(c.cobradorId === id) c.cobradorId = me.id; });
+    saveDB();
     return send(res, 200, { usuarios: DB.usuarios.map(publicUser) });
   }
 
@@ -420,6 +445,7 @@ const server = http.createServer(async (req, res)=>{
     try {
       await api(req, res, pathname, req.method);
     } catch(err){
+      if(err.tooLarge){ send(res, 413, { error: err.message }); return; }
       console.error(err);
       send(res, 500, { error: 'Error interno del servidor' });
     }
