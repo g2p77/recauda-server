@@ -22,6 +22,7 @@ self.addEventListener('fetch', (e)=>{
   if(e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if(url.pathname.startsWith('/api/')) return; // la API nunca se sirve desde caché
+  if(url.origin !== self.location.origin) return; // recursos externos (mapa, fuentes): sin caché propia
 
   e.respondWith(
     fetch(e.request).then(res=>{

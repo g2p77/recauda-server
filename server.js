@@ -170,21 +170,34 @@ function registerAttempt(ip){
    prorrateada según frecuencia de cobro)
    --------------------------------------------------------------- */
 const PERIOD_DAYS = { diario: 1, semanal: 7, quincenal: 15, mensual: 30 };
+// Reparte el total en cuotas redondeadas a múltiplos de mil (más fáciles de cobrar en
+// efectivo); la última cuota absorbe el residuo del redondeo para que la suma cuadre
+// exacta con el total. Puede quedar más grande o más chica que las demás.
+function construirCuotas(total, numCuotas){
+  if(numCuotas <= 1) return { total, cuota: total, cuotaFinal: total };
+  let cuota = Math.max(1000, Math.round((total/numCuotas)/1000)*1000);
+  let cuotaFinal = total - cuota*(numCuotas-1);
+  if(cuotaFinal <= 0){
+    // Préstamo muy pequeño para el número de cuotas: no alcanza a redondear a miles
+    // sin quedar en negativo, se reparte exacto sin redondear.
+    cuota = Math.round(total/numCuotas);
+    cuotaFinal = total - cuota*(numCuotas-1);
+  }
+  return { total, cuota, cuotaFinal };
+}
 function calcularPrestamo(monto, tasaMensualPct, numCuotas, modo, frecuencia){
   const dias = PERIOD_DAYS[frecuencia] || 1;
   const r = (tasaMensualPct/100) * (dias/30);
-  let total, cuota;
+  let total;
   if(modo === 'fijo'){
     total = monto * (1 + r*numCuotas);
-    cuota = total/numCuotas;
   } else if(modo === 'recalculado'){
-    if(r === 0){ total = monto; cuota = monto/numCuotas; }
-    else { cuota = monto*r/(1-Math.pow(1+r,-numCuotas)); total = cuota*numCuotas; }
+    if(r === 0){ total = monto; }
+    else { const cuotaExacta = monto*r/(1-Math.pow(1+r,-numCuotas)); total = cuotaExacta*numCuotas; }
   } else {
     total = monto * Math.pow(1+r, numCuotas);
-    cuota = total/numCuotas;
   }
-  return { total: Math.round(total), cuota: Math.round(cuota) };
+  return construirCuotas(Math.round(total), numCuotas);
 }
 // Cuenta los domingos entre dos fechas (sin contar el propio día de "desde"): los domingos
 // no se cobran a menos que el cliente pague voluntariamente, así que no deben sumar mora.
@@ -555,10 +568,10 @@ async function api(req, res, pathname, method){
     if(me.rol !== 'admin' && cliente.cobradorId !== me.id) return send(res, 403, { error: 'No autorizado' });
     const monto = Number(body.monto), tasa = Number(body.tasa)||0, numCuotas = Number(body.numCuotas);
     if(!monto || !numCuotas) return send(res, 400, { error: 'Monto y número de cuotas son obligatorios' });
-    const { total, cuota } = calcularPrestamo(monto, tasa, numCuotas, body.modo, body.frecuencia);
+    const { total, cuota, cuotaFinal } = calcularPrestamo(monto, tasa, numCuotas, body.modo, body.frecuencia);
     const prestamo = {
       id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
-      numCuotas, cuota, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
+      numCuotas, cuota, cuotaFinal, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
       entregadoPor: me.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta'),
       ubicacionEntrega: (body.lat!=null && body.lng!=null) ? { lat: Number(body.lat), lng: Number(body.lng) } : null
     };
@@ -590,10 +603,10 @@ async function api(req, res, pathname, method){
     if(!monto || !numCuotas) return send(res, 400, { error: 'Monto y número de cuotas son obligatorios' });
     if(monto < prestamoViejo.saldo) return send(res, 400, { error: `El nuevo monto debe ser al menos ${prestamoViejo.saldo} (el saldo pendiente)` });
     const montoEntregado = monto - prestamoViejo.saldo;
-    const { total, cuota } = calcularPrestamo(monto, tasa, numCuotas, body.modo, body.frecuencia);
+    const { total, cuota, cuotaFinal } = calcularPrestamo(monto, tasa, numCuotas, body.modo, body.frecuencia);
     const prestamoNuevo = {
       id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
-      numCuotas, cuota, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
+      numCuotas, cuota, cuotaFinal, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
       entregadoPor: me.id, montoEntregado, prestamoAnteriorId: prestamoViejo.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta')
     };
     prestamoViejo.estado = 'renovado';

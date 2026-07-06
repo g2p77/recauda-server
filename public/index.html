@@ -10,6 +10,8 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{
   --ink:#211C13;
@@ -646,6 +648,14 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
           <div id="equipo-list"></div>
           <button class="btn btn-outline gap-8" id="btn-agregar-cobrador" onclick="UI.showNewUserForm()">＋ Agregar cobrador</button>
 
+          <div id="admin-only-mapa">
+          <div class="section-title">Ubicación del equipo</div>
+          <div class="card">
+            <p class="hint" style="margin-top:0;">Mira en tiempo real dónde está cada cobrador (mientras tenga la app abierta y el GPS activo).</p>
+            <button class="btn btn-outline" onclick="UI.showTeamMap()">📍 Ver mapa del equipo</button>
+          </div>
+          </div>
+
           <div id="admin-only-datos">
           <div class="section-title">Tus datos</div>
           <div class="card">
@@ -711,6 +721,8 @@ const ICONS = {
   sparkle:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c.6 3.6 1.9 4.9 5.5 5.5-3.6.6-4.9 1.9-5.5 5.5-.6-3.6-1.9-4.9-5.5-5.5 3.6-.6 4.9-1.9 5.5-5.5Z"/><path d="M19 15.5c.3 1.8 1 2.5 2.8 2.8-1.8.3-2.5 1-2.8 2.8-.3-1.8-1-2.5-2.8-2.8 1.8-.3 2.5-1 2.8-2.8Z"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg>',
   cloudOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M16.9 16.9H6.5a3.9 3.9 0 0 1-.9-7.7 5.5 5.5 0 0 1 9.6-4.3"/><path d="M19.3 14.8A3.9 3.9 0 0 0 18 7.2"/></svg>',
+  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg>',
+  map:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4Z"/><path d="M9 4v14"/><path d="M15 6.5v14"/></svg>',
 };
 function icon(name, size){ return ICONS[name] ? ICONS[name].replace('<svg ', `<svg style="width:${size||18}px;height:${size||18}px" `) : ''; }
 
@@ -767,6 +779,8 @@ const Api = {
   registrarCobro(d){ return this.request('POST', '/api/cobros', d); },
   registrarGasto(d){ return this.request('POST', '/api/gastos', d); },
   eliminarGasto(id){ return this.request('DELETE', '/api/gastos/'+id); },
+  reportarUbicacion(lat, lng){ return this.request('POST', '/api/ubicacion', {lat, lng}); },
+  obtenerUbicaciones(){ return this.request('GET', '/api/ubicaciones'); },
   actualizarNegocio(d){ return this.request('PUT', '/api/negocio', d); },
   vapidKey(){ return this.request('GET', '/api/push/vapid-public-key', undefined, false); },
   pushSubscribe(subscription){ return this.request('POST', '/api/push/subscribe', { subscription }); },
@@ -838,23 +852,31 @@ const Loans = {
     const dias = PERIOD_DAYS[frecuencia] || 1;
     return (tasaMensualPct/100) * (dias/30);
   },
+  // Reparte el total en cuotas redondeadas a múltiplos de mil (más fáciles de cobrar en
+  // efectivo); la última cuota absorbe el residuo del redondeo, puede quedar más grande o
+  // más chica que las demás.
+  construirCuotas(total, numCuotas){
+    if(numCuotas <= 1) return { total, cuota: total, cuotaFinal: total };
+    let cuota = Math.max(1000, Math.round((total/numCuotas)/1000)*1000);
+    let cuotaFinal = total - cuota*(numCuotas-1);
+    if(cuotaFinal <= 0){
+      cuota = Math.round(total/numCuotas);
+      cuotaFinal = total - cuota*(numCuotas-1);
+    }
+    return { total, cuota, cuotaFinal };
+  },
   calcular(monto, tasaMensualPct, numCuotas, modo, frecuencia){
     const r = this.tasaPeriodo(tasaMensualPct, frecuencia);
-    let total, cuota;
+    let total;
     if(modo === 'fijo'){
       total = monto * (1 + r*numCuotas);
-      cuota = total/numCuotas;
     } else if(modo === 'recalculado'){
-      if(r === 0){ total = monto; cuota = monto/numCuotas; }
-      else {
-        cuota = monto * r / (1 - Math.pow(1+r, -numCuotas));
-        total = cuota*numCuotas;
-      }
+      if(r === 0){ total = monto; }
+      else { const cuotaExacta = monto * r / (1 - Math.pow(1+r, -numCuotas)); total = cuotaExacta*numCuotas; }
     } else { // capitalizacion bancaria (interés compuesto sobre cada cuota)
       total = monto * Math.pow(1+r, numCuotas);
-      cuota = total/numCuotas;
     }
-    return { total: Math.round(total), cuota: Math.round(cuota) };
+    return this.construirCuotas(Math.round(total), numCuotas);
   },
   deCliente(clienteId){ return STATE.prestamos.filter(p=>p.clienteId===clienteId); },
   activoDeCliente(clienteId){ return STATE.prestamos.find(p=>p.clienteId===clienteId && p.estado==='activo'); },
@@ -920,9 +942,95 @@ const Auth = {
   logout(){
     Api.token = null;
     clearSession();
+    LocationReporter.stop();
     document.getElementById('shell').style.display='none';
     document.getElementById('view-login').style.display='flex';
     UI.renderLogin();
+  }
+};
+
+/* =========================================================
+   UBICACIÓN EN TIEMPO REAL — mientras el cobrador tiene la
+   app abierta, reporta su posición cada cierto tiempo para
+   que el administrador pueda ver el mapa del equipo.
+   ========================================================= */
+const LocationReporter = {
+  interval: null,
+  start(){
+    if(this.interval) return; // ya está corriendo
+    if(!('geolocation' in navigator)) return;
+    const reportar = () => {
+      navigator.geolocation.getCurrentPosition(
+        pos => { Api.reportarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(()=>{}); },
+        () => { /* permiso denegado o sin señal: no molestamos con avisos repetidos */ },
+        { enableHighAccuracy:false, timeout:10000, maximumAge:60000 }
+      );
+    };
+    reportar();
+    this.interval = setInterval(reportar, 45000);
+  },
+  stop(){
+    if(this.interval) clearInterval(this.interval);
+    this.interval = null;
+  }
+};
+
+/* =========================================================
+   MAPA DEL EQUIPO — vista de administrador con la última
+   ubicación conocida de cada cobrador (Leaflet + OpenStreetMap).
+   ========================================================= */
+const TeamMap = {
+  map: null, markers: {}, interval: null,
+  async init(){
+    if(typeof L === 'undefined'){ UI.toast('No se pudo cargar el mapa (revisa tu conexión a internet)'); return; }
+    this.map = L.map('team-map').setView([4.6097, -74.0817], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap', maxZoom: 19
+    }).addTo(this.map);
+    await this.refresh();
+    this.interval = setInterval(()=>this.refresh(), 15000);
+  },
+  async refresh(){
+    if(!this.map) return;
+    try{
+      const data = await Api.obtenerUbicaciones();
+      const bounds = [];
+      Object.keys(data).forEach(uid=>{
+        const puntos = data[uid];
+        if(!puntos.length) return;
+        const ultimo = puntos[puntos.length-1];
+        const u = STATE.usuarios.find(x=>x.id===uid);
+        const nombre = u ? u.nombre : 'Cobrador';
+        const pos = [ultimo.lat, ultimo.lng];
+        bounds.push(pos);
+        const mins = Math.round((Date.now() - new Date(ultimo.fecha).getTime())/60000);
+        const etiqueta = `<b>${nombre}</b><br>hace ${mins<1?'un momento':mins+' min'}`;
+        if(this.markers[uid]) this.markers[uid].setLatLng(pos).setPopupContent(etiqueta);
+        else this.markers[uid] = L.marker(pos).addTo(this.map).bindPopup(etiqueta);
+      });
+      if(bounds.length) this.map.fitBounds(bounds, { maxZoom: 15, padding: [30,30] });
+      const listBox = document.getElementById('team-map-list');
+      if(listBox){
+        const filas = Object.keys(data).map(uid=>{
+          const puntos = data[uid];
+          if(!puntos.length) return '';
+          const ultimo = puntos[puntos.length-1];
+          const u = STATE.usuarios.find(x=>x.id===uid);
+          const mins = Math.round((Date.now() - new Date(ultimo.fecha).getTime())/60000);
+          return `<div class="list-item">
+            <div class="avatar">${(u?u.nombre:'?').slice(0,1).toUpperCase()}</div>
+            <div class="info"><div class="name">${u?u.nombre:'Cobrador'}</div><div class="meta">Actualizado hace ${mins<1?'un momento':mins+' min'}</div></div>
+          </div>`;
+        }).filter(Boolean).join('');
+        listBox.innerHTML = filas || `<div class="empty" style="padding:16px;"><p>Nadie ha compartido su ubicación todavía</p></div>`;
+      }
+    } catch(e){ /* si falla, se reintenta en el próximo intervalo */ }
+  },
+  destroy(){
+    if(this.interval) clearInterval(this.interval);
+    this.interval = null;
+    if(this.map){ this.map.remove(); this.map = null; }
+    this.markers = {};
   }
 };
 
@@ -1230,6 +1338,81 @@ function resizeImageFile(file, maxDim, quality){
 }
 
 /* =========================================================
+   PAGARÉ COMO IMAGEN — se dibuja a mano en un <canvas> (sin
+   dependencias externas) para poder compartirlo o descargarlo.
+   ========================================================= */
+function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+  const words = text.split(' ');
+  let line = '';
+  for(let n=0; n<words.length; n++){
+    const testLine = line + words[n] + ' ';
+    if(ctx.measureText(testLine).width > maxWidth && n > 0){
+      ctx.fillText(line.trim(), x, y);
+      line = words[n] + ' ';
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line.trim(), x, y);
+  return y + lineHeight;
+}
+function dibujarPagareCanvas(p, cl, negocio){
+  const W = 900, H = 1200;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#F8F2E2'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(40,40,W-80,H-80);
+  ctx.strokeStyle = '#DBCA9C'; ctx.lineWidth = 2; ctx.strokeRect(40,40,W-80,H-80);
+
+  let y = 110;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8A8064';
+  ctx.font = '600 16px Arial';
+  ctx.fillText((negocio.nombre||'Recauda').toUpperCase(), W/2, y);
+  y += 46;
+  ctx.fillStyle = '#173D30';
+  ctx.font = 'bold 42px Georgia, serif';
+  ctx.fillText('PAGARÉ', W/2, y);
+  y += 30;
+  ctx.strokeStyle = '#DBCA9C';
+  ctx.beginPath(); ctx.moveTo(100,y); ctx.lineTo(W-100,y); ctx.stroke();
+  y += 50;
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#211C13';
+  ctx.font = '18px Arial';
+  const marginX = 100, maxWidth = W-200, lineHeight = 30;
+
+  const cedulaTxt = cl.cedula ? `, identificado(a) con cédula de ciudadanía No. ${cl.cedula},` : ', identificado(a) con cédula de ciudadanía,';
+  const texto1 = `Por medio del presente documento, yo ${cl.nombre}${cedulaTxt} declaro deber y pagar incondicionalmente a ${negocio.nombre} la suma de ${fmt(p.total)}, correspondiente a un préstamo recibido el ${fmtDate(p.fechaInicio)}.`;
+  y = wrapText(ctx, texto1, marginX, y, maxWidth, lineHeight) + 20;
+
+  const cuotaFinalTxt = p.cuotaFinal && p.cuotaFinal!==p.cuota ? ` (la última cuota es de ${fmt(p.cuotaFinal)})` : '';
+  const texto2 = `Este monto se pagará en ${p.numCuotas} cuotas de frecuencia ${p.frecuencia} por valor de ${fmt(p.cuota)} cada una${cuotaFinalTxt}, hasta cancelar la totalidad de la deuda.`;
+  y = wrapText(ctx, texto2, marginX, y, maxWidth, lineHeight) + 20;
+
+  const texto3 = `En caso de incumplimiento, acepto las acciones de cobro que la ley permita.`;
+  y = wrapText(ctx, texto3, marginX, y, maxWidth, lineHeight);
+
+  y = Math.max(y+120, H-260);
+  ctx.strokeStyle = '#211C13';
+  ctx.beginPath(); ctx.moveTo(W/2-150, y); ctx.lineTo(W/2+150, y); ctx.stroke();
+  y += 26;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8A8064';
+  ctx.font = '15px Arial';
+  ctx.fillText(`Firma de ${cl.nombre}`, W/2, y);
+
+  ctx.font = '12px Arial';
+  ctx.fillText(`Generado el ${new Date().toLocaleDateString('es-CO', {day:'2-digit', month:'long', year:'numeric'})}`, W/2, H-70);
+
+  return canvas;
+}
+
+/* =========================================================
    FOTOS — componente reutilizable para adjuntar una o varias
    fotos (comprobantes, tarjeta firmada, gastos), con opción de
    tomar la foto directamente con la cámara del celular.
@@ -1425,6 +1608,7 @@ const UI = {
     document.getElementById('shell').style.display='flex';
     this.applyBranding();
     this.goto('dashboard');
+    LocationReporter.start();
   },
   applyBranding(){
     const logo = STATE.negocio.logo || 'R';
@@ -1455,7 +1639,7 @@ const UI = {
 
   applyRoleVisibility(){
     const esAdmin = Auth.currentUser().rol === 'admin';
-    ['admin-only-negocio','admin-only-datos'].forEach(id=>{
+    ['admin-only-negocio','admin-only-mapa','admin-only-datos'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.style.display = esAdmin ? '' : 'none';
     });
@@ -1479,6 +1663,7 @@ const UI = {
   },
   _hideModal(){
     document.getElementById('modal-overlay').classList.remove('active');
+    TeamMap.destroy();
   },
 
   /* ---------------- DASHBOARD ---------------- */
@@ -1684,7 +1869,7 @@ const UI = {
         <div class="receipt-row"><span>Modo de interés</span><span>${({fijo:'Fijo',recalculado:'Recalculado',capitalizacion:'Capitalización'})[activo.modoInteres]}</span></div>
         <div class="receipt-row"><span>Tasa mensual</span><span>${activo.tasa}%</span></div>
         <div class="receipt-row"><span>Frecuencia</span><span>${activo.frecuencia}</span></div>
-        <div class="receipt-row"><span>Cuota</span><span>${fmt(activo.cuota)}</span></div>
+        <div class="receipt-row"><span>Cuota</span><span>${fmt(activo.cuota)}${activo.cuotaFinal && activo.cuotaFinal!==activo.cuota ? ' (última '+fmt(activo.cuotaFinal)+')' : ''}</span></div>
         <div class="receipt-row"><span>Cuotas pagadas</span><span>${activo.cuotasPagadas} / ${activo.numCuotas}</span></div>
         ${photosOf(activo,'tarjetaFirma','fotosTarjeta').length ? `<div style="margin-top:10px;"><div class="hint" style="margin:0 0 4px;">Tarjeta firmada</div>${photoGallery(photosOf(activo,'tarjetaFirma','fotosTarjeta'))}</div>` : ''}
         <div class="btn-row" style="margin-top:12px;">
@@ -1888,8 +2073,9 @@ const UI = {
     const frecuencia = document.getElementById('lf-frecuencia').value;
     const prev = document.getElementById('lf-preview');
     if(monto>0 && cuotas>0){
-      const {total, cuota} = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
+      const {total, cuota, cuotaFinal} = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
       let html = `Total a pagar: <b>${fmt(total)}</b> · Cuota: <b>${fmt(cuota)}</b>`;
+      if(cuotaFinal !== cuota) html += ` <span class="hint" style="display:inline;">(última: ${fmt(cuotaFinal)})</span>`;
       if(total > monto*5){
         html += `<br><span style="color:var(--red-700); font-weight:600;">⚠ El total sería más de 5 veces el monto prestado. Confirma que la tasa y el número de cuotas sean los que quieres.</span>`;
       }
@@ -1967,9 +2153,11 @@ const UI = {
     const frecuencia = document.getElementById('rf-frecuencia').value;
     const prev = document.getElementById('rf-preview');
     if(monto>0 && cuotas>0){
-      const {total, cuota} = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
+      const {total, cuota, cuotaFinal} = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
       const montoEntregar = monto - p.saldo;
-      let html = `Total a pagar: <b>${fmt(total)}</b> · Cuota: <b>${fmt(cuota)}</b><br>`;
+      let html = `Total a pagar: <b>${fmt(total)}</b> · Cuota: <b>${fmt(cuota)}</b>`;
+      if(cuotaFinal !== cuota) html += ` <span class="hint" style="display:inline;">(última: ${fmt(cuotaFinal)})</span>`;
+      html += `<br>`;
       if(montoEntregar < 0){
         html += `<span style="color:var(--red-700); font-weight:600;">⚠ El monto debe ser al menos ${fmt(p.saldo)} (el saldo pendiente)</span>`;
       } else {
@@ -2105,18 +2293,56 @@ const UI = {
   showDocumento(prestamoId){
     const p = STATE.prestamos.find(x=>x.id===prestamoId);
     const cl = STATE.clientes.find(c=>c.id===p.clienteId);
+    const cedulaTxt = cl.cedula ? `, identificado(a) con cédula de ciudadanía No. ${cl.cedula},` : ', identificado(a) con cédula de ciudadanía,';
+    const cuotaFinalTxt = p.cuotaFinal && p.cuotaFinal!==p.cuota ? ` (la última de <b>${fmt(p.cuotaFinal)}</b>)` : '';
     const html = `
       <div class="doc-paper">
         <h3>Pagaré</h3>
         <div class="doc-sub">${STATE.negocio.nombre}</div>
-        <p>Por medio del presente documento, yo <b>${cl.nombre}</b>, identificado(a) con cédula de ciudadanía, declaro deber y pagar incondicionalmente a <b>${STATE.negocio.nombre}</b> la suma de <b>${fmt(p.total)}</b>, correspondiente a un préstamo recibido el <b>${fmtDate(p.fechaInicio)}</b>.</p>
-        <p>Este monto se pagará en <b>${p.numCuotas}</b> cuotas de frecuencia <b>${p.frecuencia}</b> por valor de <b>${fmt(p.cuota)}</b> cada una, hasta cancelar la totalidad de la deuda.</p>
+        <p>Por medio del presente documento, yo <b>${cl.nombre}</b>${cedulaTxt} declaro deber y pagar incondicionalmente a <b>${STATE.negocio.nombre}</b> la suma de <b>${fmt(p.total)}</b>, correspondiente a un préstamo recibido el <b>${fmtDate(p.fechaInicio)}</b>.</p>
+        <p>Este monto se pagará en <b>${p.numCuotas}</b> cuotas de frecuencia <b>${p.frecuencia}</b> por valor de <b>${fmt(p.cuota)}</b> cada una${cuotaFinalTxt}, hasta cancelar la totalidad de la deuda.</p>
         <p>En caso de incumplimiento, acepto las acciones de cobro que la ley permita.</p>
         <div class="doc-sign-line">Firma de ${cl.nombre}</div>
       </div>
-      <button class="btn btn-primary" style="margin-top:12px;" onclick="window.print()">${icon('print',16)} Imprimir pagaré</button>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-outline" onclick="window.print()">${icon('print',16)} Imprimir</button>
+        <button class="btn btn-primary" onclick="UI.compartirPagareImagen('${prestamoId}')">${icon('share',16)} Compartir imagen</button>
+      </div>
     `;
     this.openModal(html);
+  },
+  async compartirPagareImagen(prestamoId){
+    const p = STATE.prestamos.find(x=>x.id===prestamoId);
+    const cl = STATE.clientes.find(c=>c.id===p.clienteId);
+    this.toast('Generando imagen...');
+    const canvas = dibujarPagareCanvas(p, cl, STATE.negocio);
+    canvas.toBlob(async (blob)=>{
+      if(!blob){ this.toast('No se pudo generar la imagen'); return; }
+      const filename = `pagare-${cl.nombre.replace(/\s+/g,'_')}.png`;
+      const file = new File([blob], filename, { type: 'image/png' });
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: 'Pagaré', text: `Pagaré de ${cl.nombre} — ${STATE.negocio.nombre}` });
+          return;
+        } catch(err){ if(err.name === 'AbortError') return; }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      this.toast('Imagen descargada — compártela desde tu galería');
+    }, 'image/png', 0.95);
+  },
+
+  /* ---------------- MAPA DEL EQUIPO ---------------- */
+  showTeamMap(){
+    this.openModal(`
+      <div class="modal-title">Mapa del equipo</div>
+      <div class="hint" style="margin-top:-8px; margin-bottom:10px;">Última ubicación conocida de cada cobrador, mientras tenga la app abierta.</div>
+      <div id="team-map" style="width:100%; height:320px; border-radius:12px; overflow:hidden; border:1px solid var(--paper-line);"></div>
+      <div id="team-map-list" style="margin-top:10px;"></div>
+    `);
+    requestAnimationFrame(()=>TeamMap.init());
   },
 
   /* ---------------- RUTAS ---------------- */
