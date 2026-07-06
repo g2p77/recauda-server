@@ -387,9 +387,6 @@ async function api(req, res, pathname, method){
   if(pathname === '/api/clientes' && method === 'POST'){
     const body = await readBody(req);
     if(!body.nombre) return send(res, 400, { error: 'Falta el nombre del cliente' });
-    if(DB.negocio.plan !== 'premium' && DB.clientes.length >= 10){
-      return send(res, 402, { error: 'Límite del plan gratis (10 clientes) alcanzado' });
-    }
     const cliente = {
       id: uid('cl'), nombre: String(body.nombre).trim(),
       telefono: body.telefono || '', direccion: body.direccion || '', zona: body.zona || '',
