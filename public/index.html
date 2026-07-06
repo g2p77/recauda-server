@@ -474,10 +474,11 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
             </div>
           </div>
           <div class="section-title">Acciones rápidas</div>
-          <div class="btn-row gap-8">
+          <div class="stat-grid gap-8">
             <button class="btn btn-primary" id="btn-cobrar-rapido"></button>
             <button class="btn btn-outline" id="btn-cliente-rapido"></button>
             <button class="btn btn-outline" id="btn-gasto-rapido"></button>
+            <button class="btn btn-outline" id="btn-simular-rapido"></button>
           </div>
           <div class="section-title">Clientes en mora</div>
           <div id="dash-mora-list"></div>
@@ -736,6 +737,7 @@ const ICONS = {
   cloudOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M16.9 16.9H6.5a3.9 3.9 0 0 1-.9-7.7 5.5 5.5 0 0 1 9.6-4.3"/><path d="M19.3 14.8A3.9 3.9 0 0 0 18 7.2"/></svg>',
   share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg>',
   map:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4Z"/><path d="M9 4v14"/><path d="M15 6.5v14"/></svg>',
+  calc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M8 7h8"/><path d="M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/></svg>',
 };
 function icon(name, size){ return ICONS[name] ? ICONS[name].replace('<svg ', `<svg style="width:${size||18}px;height:${size||18}px" `) : ''; }
 
@@ -1585,9 +1587,11 @@ const UI = {
     document.getElementById('btn-cobrar-rapido').innerHTML = icon('cash',17)+' Cobrar';
     document.getElementById('btn-cliente-rapido').innerHTML = icon('plus',17)+' Cliente';
     document.getElementById('btn-gasto-rapido').innerHTML = icon('receipt',17)+' Gasto';
+    document.getElementById('btn-simular-rapido').innerHTML = icon('calc',17)+' Simular';
     document.getElementById('btn-cobrar-rapido').addEventListener('click', ()=>UI.openCobroFlow());
     document.getElementById('btn-cliente-rapido').addEventListener('click', ()=>UI.showClientForm());
     document.getElementById('btn-gasto-rapido').addEventListener('click', ()=>UI.showGastoForm());
+    document.getElementById('btn-simular-rapido').addEventListener('click', ()=>UI.showSimuladorForm());
     document.getElementById('fab-cliente').innerHTML = icon('plus',24);
     document.getElementById('fab-cliente').addEventListener('click', ()=>UI.showClientForm());
     document.querySelectorAll('.navbtn').forEach(b=>{ b.innerHTML = icon(b.dataset.icon,21) + '<span>'+b.textContent+'</span>'; });
@@ -2179,6 +2183,84 @@ const UI = {
       this.renderReporteDiario();
       this.toast('Gasto eliminado');
     } catch(e){ this.toast(e.message); }
+  },
+
+  /* ---------------- SIMULADOR DE CRÉDITO ---------------- */
+  showSimuladorForm(){
+    this.openModal(`
+      <div class="modal-title">Simulador de crédito</div>
+      <div class="hint" style="margin-top:-8px; margin-bottom:12px;">Calcula cuotas para un cliente nuevo o interesado, sin necesidad de crearlo todavía.</div>
+      <div class="field"><label>Monto a prestar</label><input type="number" id="sim-monto" placeholder="500000"></div>
+      <div class="field"><label>Frecuencia de cobro</label>
+        <select id="sim-frecuencia">
+          <option value="diario">Diario</option>
+          <option value="semanal">Semanal</option>
+          <option value="quincenal">Quincenal</option>
+          <option value="mensual">Mensual</option>
+        </select>
+      </div>
+      <div class="field"><label>Número de cuotas</label><input type="number" id="sim-cuotas" placeholder="20"></div>
+      <div class="field"><label>Modo de interés</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'sim-modo','fijo'); UI.updateSimulador();">Fijo</button>
+          <button type="button" onclick="UI.segPick(this,'sim-modo','recalculado'); UI.updateSimulador();">Recalculado</button>
+          <button type="button" onclick="UI.segPick(this,'sim-modo','capitalizacion'); UI.updateSimulador();">Capitaliz.</button>
+        </div>
+        <input type="hidden" id="sim-modo" value="fijo">
+      </div>
+      <div class="field">
+        <label>Tasa de interés mensual (%)</label>
+        <input type="number" step="1" min="0" inputmode="numeric" id="sim-tasa" placeholder="20" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <div class="card flat" id="sim-resultado" style="margin-top:2px;">
+        <div class="hint" style="margin:0;">Completa los datos para ver el cálculo</div>
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>¿El cliente prefiere pagar una cuota fija más alta?</label>
+        <input type="number" id="sim-cuota-preferida" placeholder="Ej: 25000 (opcional)">
+        <div class="hint">Si es mayor a la cuota sugerida, te decimos en cuántas cuotas terminaría pagando eso en vez del número de cuotas de arriba.</div>
+      </div>
+      <div class="hint" id="sim-preferida-resultado"></div>
+    `);
+    this._simTotal = null; this._simCuota = null;
+    ['sim-monto','sim-tasa','sim-cuotas'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', ()=>UI.updateSimulador());
+    });
+    document.getElementById('sim-frecuencia').addEventListener('change', ()=>UI.updateSimulador());
+    document.getElementById('sim-cuota-preferida').addEventListener('input', ()=>UI.updateSimuladorPreferida());
+  },
+  updateSimulador(){
+    const monto = Number(document.getElementById('sim-monto').value)||0;
+    const tasa = Number(document.getElementById('sim-tasa').value)||0;
+    const cuotas = Number(document.getElementById('sim-cuotas').value)||0;
+    const modo = document.getElementById('sim-modo').value;
+    const frecuencia = document.getElementById('sim-frecuencia').value;
+    const box = document.getElementById('sim-resultado');
+    if(monto>0 && cuotas>0){
+      const { total, cuota, cuotaFinal } = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
+      this._simTotal = total; this._simCuota = cuota;
+      box.innerHTML = `
+        <div class="receipt-row"><span>Total a pagar</span><span>${fmt(total)}</span></div>
+        <div class="receipt-row"><span>Cuota sugerida</span><span>${fmt(cuota)}${cuotaFinal!==cuota?' (última '+fmt(cuotaFinal)+')':''}</span></div>
+      `;
+    } else {
+      this._simTotal = null; this._simCuota = null;
+      box.innerHTML = `<div class="hint" style="margin:0;">Completa los datos para ver el cálculo</div>`;
+    }
+    this.updateSimuladorPreferida();
+  },
+  updateSimuladorPreferida(){
+    const el = document.getElementById('sim-preferida-resultado');
+    const pref = Number(document.getElementById('sim-cuota-preferida').value)||0;
+    if(!this._simTotal || !pref){ el.textContent = ''; return; }
+    if(pref < this._simCuota){
+      el.innerHTML = `<span style="color:var(--red-700); font-weight:600;">Debe ser mayor o igual a la cuota sugerida (${fmt(this._simCuota)})</span>`;
+      return;
+    }
+    const numCuotasOriginal = Number(document.getElementById('sim-cuotas').value)||0;
+    const cuotasNecesarias = Math.ceil(this._simTotal / pref);
+    const ultima = this._simTotal - pref*(cuotasNecesarias-1);
+    el.innerHTML = `Pagando <b>${fmt(pref)}</b> por cuota, el cliente terminaría en <b>${cuotasNecesarias}</b> cuota${cuotasNecesarias===1?'':'s'} (última de ${fmt(ultima)}) en vez de ${numCuotasOriginal}.`;
   },
 
   /* ---------------- PRÉSTAMOS ---------------- */
