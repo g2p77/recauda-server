@@ -77,6 +77,7 @@ loadVapid();
    Base de datos en archivo JSON
    --------------------------------------------------------------- */
 function uid(prefix){ return prefix + '_' + crypto.randomBytes(6).toString('hex'); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
 
 function seedDB(){
   const salt = crypto.randomBytes(16).toString('hex');
@@ -88,6 +89,9 @@ function seedDB(){
     clientes: [],
     prestamos: [],
     cobros: [],
+    visitas: [],
+    gastos: [],
+    ubicaciones: {},
     pushSubs: {}
   };
 }
@@ -101,7 +105,11 @@ function loadDB(){
     saveDB();
     console.log('Base de datos creada. Usuario: Administrador / PIN: 1234 (cámbialo pronto).');
   }
-  if(!DB.pushSubs) DB.pushSubs = {}; // compatibilidad con instalaciones ya existentes
+  // compatibilidad con instalaciones ya existentes (agrega lo que falte sin borrar nada)
+  if(!DB.pushSubs) DB.pushSubs = {};
+  if(!DB.visitas) DB.visitas = [];
+  if(!DB.gastos) DB.gastos = [];
+  if(!DB.ubicaciones) DB.ubicaciones = {};
 }
 function saveDB(){
   fs.writeFileSync(DB_FILE, JSON.stringify(DB, null, 2));
@@ -241,6 +249,14 @@ function cobrosVisibles(user){
   const ids = new Set(clientesVisibles(user).map(c=>c.id));
   return DB.cobros.filter(c => ids.has(c.clienteId));
 }
+function visitasVisibles(user){
+  if(user.rol === 'admin') return DB.visitas;
+  return DB.visitas.filter(v => v.cobradorId === user.id);
+}
+function gastosVisibles(user){
+  if(user.rol === 'admin') return DB.gastos;
+  return DB.gastos.filter(g => g.cobradorId === user.id);
+}
 function stateFor(user){
   return {
     negocio: DB.negocio,
@@ -248,6 +264,8 @@ function stateFor(user){
     clientes: clientesVisibles(user),
     prestamos: prestamosVisibles(user),
     cobros: cobrosVisibles(user),
+    visitas: visitasVisibles(user),
+    gastos: gastosVisibles(user),
     yo: user
   };
 }
@@ -429,9 +447,21 @@ async function api(req, res, pathname, method){
     const { total, cuota } = calcularPrestamo(monto, tasa, numCuotas, body.modo, body.frecuencia);
     const prestamo = {
       id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
-      numCuotas, cuota, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo'
+      numCuotas, cuota, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
+      entregadoPor: me.id,
+      ubicacionEntrega: (body.lat!=null && body.lng!=null) ? { lat: Number(body.lat), lng: Number(body.lng) } : null
     };
     DB.prestamos.push(prestamo); saveDB();
+    return send(res, 200, { prestamo });
+  }
+
+  if(pathname.startsWith('/api/prestamos/') && pathname.endsWith('/perdida') && method === 'PUT'){
+    if(me.rol !== 'admin') return send(res, 403, { error: 'Solo un administrador puede marcar un préstamo como pérdida' });
+    const id = pathname.split('/')[3];
+    const prestamo = DB.prestamos.find(p=>p.id===id);
+    if(!prestamo) return send(res, 404, { error: 'Préstamo no encontrado' });
+    prestamo.estado = 'perdida';
+    saveDB();
     return send(res, 200, { prestamo });
   }
 
@@ -454,6 +484,70 @@ async function api(req, res, pathname, method){
     if(prestamo.saldo <= 0) prestamo.estado = 'pagado';
     saveDB();
     return send(res, 200, { cobro, prestamo });
+  }
+
+  // Registro de visita (con o sin cobro) para el checklist de ruta, con geolocalización opcional
+  if(pathname === '/api/visitas' && method === 'POST'){
+    const body = await readBody(req);
+    const cliente = DB.clientes.find(c=>c.id===body.clienteId);
+    if(!cliente) return send(res, 404, { error: 'Cliente no encontrado' });
+    if(me.rol !== 'admin' && cliente.cobradorId !== me.id) return send(res, 403, { error: 'No autorizado' });
+    const visita = {
+      id: uid('v'), clienteId: cliente.id, cobradorId: me.id,
+      fecha: new Date().toISOString(),
+      resultado: body.resultado === 'cobrado' ? 'cobrado' : 'sin_cobro',
+      motivo: body.motivo || null,
+      cobroId: body.cobroId || null,
+      lat: body.lat!=null ? Number(body.lat) : null,
+      lng: body.lng!=null ? Number(body.lng) : null
+    };
+    DB.visitas.push(visita); saveDB();
+    return send(res, 200, { visita });
+  }
+
+  // Gastos del negocio o de un cobrador en particular
+  if(pathname === '/api/gastos' && method === 'POST'){
+    const body = await readBody(req);
+    const monto = Number(body.monto);
+    if(!monto || monto<=0) return send(res, 400, { error: 'Monto inválido' });
+    if(!body.concepto) return send(res, 400, { error: 'Falta el concepto del gasto' });
+    const cobradorId = body.cobradorId || me.id;
+    if(me.rol !== 'admin' && cobradorId !== me.id) return send(res, 403, { error: 'Solo puedes registrar gastos propios' });
+    const gasto = {
+      id: uid('g'), concepto: String(body.concepto).trim(), monto,
+      categoria: body.categoria || 'otro', cobradorId,
+      fecha: new Date().toISOString()
+    };
+    DB.gastos.push(gasto); saveDB();
+    return send(res, 200, { gasto });
+  }
+
+  if(pathname.startsWith('/api/gastos/') && method === 'DELETE'){
+    const id = pathname.split('/')[3];
+    const gasto = DB.gastos.find(g=>g.id===id);
+    if(!gasto) return send(res, 404, { error: 'Gasto no encontrado' });
+    if(me.rol !== 'admin' && gasto.cobradorId !== me.id) return send(res, 403, { error: 'No autorizado' });
+    DB.gastos = DB.gastos.filter(g=>g.id!==id);
+    saveDB();
+    return send(res, 200, { ok: true });
+  }
+
+  // Ubicación en tiempo real (mientras el cobrador tiene la app abierta)
+  if(pathname === '/api/ubicacion' && method === 'POST'){
+    const body = await readBody(req);
+    if(body.lat==null || body.lng==null) return send(res, 400, { error: 'Faltan coordenadas' });
+    if(!DB.ubicaciones[me.id]) DB.ubicaciones[me.id] = [];
+    const hoy = todayISO();
+    DB.ubicaciones[me.id] = DB.ubicaciones[me.id].filter(p=>p.fecha.slice(0,10)===hoy);
+    DB.ubicaciones[me.id].push({ lat: Number(body.lat), lng: Number(body.lng), fecha: new Date().toISOString() });
+    if(DB.ubicaciones[me.id].length > 500) DB.ubicaciones[me.id] = DB.ubicaciones[me.id].slice(-500);
+    saveDB();
+    return send(res, 200, { ok: true });
+  }
+
+  if(pathname === '/api/ubicaciones' && method === 'GET'){
+    if(me.rol !== 'admin') return send(res, 403, { error: 'Solo un administrador puede ver el mapa del equipo' });
+    return send(res, 200, DB.ubicaciones);
   }
 
   if(pathname === '/api/negocio' && method === 'PUT'){
