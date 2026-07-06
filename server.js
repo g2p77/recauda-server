@@ -21,12 +21,25 @@ const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
 
+// web-push es la única dependencia externa: hace posible enviar notificaciones
+// aunque el celular tenga la app cerrada. Se carga de forma segura: si por
+// alguna razón no está instalada, el resto de la app sigue funcionando normal
+// y las notificaciones simplemente quedan desactivadas.
+let webpush = null;
+try { webpush = require('web-push'); }
+catch(e){ console.warn('[ZaJu Tech] "web-push" no está instalado todavía (ejecuta "npm install"). Las notificaciones programadas quedarán desactivadas hasta entonces; el resto de la app funciona con normalidad.'); }
+
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const SECRET_FILE = path.join(DATA_DIR, 'secret.txt');
+const VAPID_FILE = path.join(DATA_DIR, 'vapid.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const TOKEN_TTL_MS = 30 * 24 * 3600 * 1000; // 30 días
+
+// Notificaciones diarias de "clientes pendientes por pagar"
+const NOTIFY_TIMES = [{ h: 12, m: 0 }, { h: 16, m: 0 }]; // 12:00 m. y 4:00 p.m.
+const NOTIFY_TIMEZONE = 'America/Bogota'; // cámbialo aquí si tu negocio está en otro país/huso horario
 
 if(!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -42,6 +55,25 @@ if(fs.existsSync(SECRET_FILE)){
 }
 
 /* ---------------------------------------------------------------
+   Claves VAPID para notificaciones push (se generan una sola vez)
+   --------------------------------------------------------------- */
+let VAPID = null;
+function loadVapid(){
+  if(fs.existsSync(VAPID_FILE)){
+    try { VAPID = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf8')); } catch(e){ VAPID = null; }
+  }
+  if(!VAPID && webpush){
+    const keys = webpush.generateVAPIDKeys();
+    VAPID = { publicKey: keys.publicKey, privateKey: keys.privateKey };
+    fs.writeFileSync(VAPID_FILE, JSON.stringify(VAPID));
+  }
+  if(webpush && VAPID){
+    webpush.setVapidDetails('mailto:soporte@example.com', VAPID.publicKey, VAPID.privateKey);
+  }
+}
+loadVapid();
+
+/* ---------------------------------------------------------------
    Base de datos en archivo JSON
    --------------------------------------------------------------- */
 function uid(prefix){ return prefix + '_' + crypto.randomBytes(6).toString('hex'); }
@@ -55,7 +87,8 @@ function seedDB(){
     ],
     clientes: [],
     prestamos: [],
-    cobros: []
+    cobros: [],
+    pushSubs: {}
   };
 }
 
@@ -68,6 +101,7 @@ function loadDB(){
     saveDB();
     console.log('Base de datos creada. Usuario: Administrador / PIN: 1234 (cámbialo pronto).');
   }
+  if(!DB.pushSubs) DB.pushSubs = {}; // compatibilidad con instalaciones ya existentes
 }
 function saveDB(){
   fs.writeFileSync(DB_FILE, JSON.stringify(DB, null, 2));
@@ -255,6 +289,12 @@ async function api(req, res, pathname, method){
     return send(res, 200, DB.usuarios.map(publicUser));
   }
 
+  // Público: llave pública para poder suscribirse a notificaciones
+  if(pathname === '/api/push/vapid-public-key' && method === 'GET'){
+    if(!VAPID) return send(res, 503, { error: 'Las notificaciones no están disponibles en este servidor todavía' });
+    return send(res, 200, { publicKey: VAPID.publicKey });
+  }
+
   if(pathname === '/api/login' && method === 'POST'){
     const ip = req.socket.remoteAddress || 'ip';
     if(tooManyAttempts(ip)) return send(res, 429, { error: 'Demasiados intentos. Espera unos minutos.' });
@@ -274,6 +314,26 @@ async function api(req, res, pathname, method){
   const me = getAuth(req);
   if(!me) return send(res, 401, { error: 'Sesión inválida o expirada' });
 
+  if(pathname === '/api/push/subscribe' && method === 'POST'){
+    if(!webpush) return send(res, 503, { error: 'Las notificaciones no están disponibles en este servidor todavía' });
+    const body = await readBody(req);
+    if(!body.subscription || !body.subscription.endpoint) return send(res, 400, { error: 'Falta la suscripción' });
+    if(!DB.pushSubs[me.id]) DB.pushSubs[me.id] = [];
+    DB.pushSubs[me.id] = DB.pushSubs[me.id].filter(s=>s.endpoint !== body.subscription.endpoint);
+    DB.pushSubs[me.id].push(body.subscription);
+    saveDB();
+    return send(res, 200, { ok: true });
+  }
+
+  if(pathname === '/api/push/unsubscribe' && method === 'POST'){
+    const body = await readBody(req);
+    if(DB.pushSubs[me.id]){
+      DB.pushSubs[me.id] = DB.pushSubs[me.id].filter(s=>s.endpoint !== body.endpoint);
+      saveDB();
+    }
+    return send(res, 200, { ok: true });
+  }
+
   if(pathname === '/api/state' && method === 'GET'){
     return send(res, 200, stateFor(me));
   }
@@ -288,6 +348,23 @@ async function api(req, res, pathname, method){
       pinSalt: salt, pinHash: body.pin ? hashPin(body.pin, salt) : null
     };
     DB.usuarios.push(nuevo); saveDB();
+    return send(res, 200, { usuarios: DB.usuarios.map(publicUser) });
+  }
+
+  if(pathname.startsWith('/api/usuarios/') && method === 'PUT'){
+    const id = pathname.split('/')[3];
+    const usuario = DB.usuarios.find(u=>u.id===id);
+    if(!usuario) return send(res, 404, { error: 'Usuario no encontrado' });
+    if(me.rol !== 'admin' && me.id !== id) return send(res, 403, { error: 'Solo puedes cambiar tu propio PIN' });
+    const body = await readBody(req);
+    if(body.nombre && me.rol === 'admin') usuario.nombre = String(body.nombre).trim();
+    if(typeof body.pin === 'string'){
+      if(body.pin && body.pin.length < 4) return send(res, 400, { error: 'El PIN debe tener al menos 4 dígitos' });
+      const salt = crypto.randomBytes(16).toString('hex');
+      usuario.pinSalt = salt;
+      usuario.pinHash = body.pin ? hashPin(body.pin, salt) : null;
+    }
+    saveDB();
     return send(res, 200, { usuarios: DB.usuarios.map(publicUser) });
   }
 
@@ -434,6 +511,65 @@ async function api(req, res, pathname, method){
 /* ---------------------------------------------------------------
    Servidor HTTP
    --------------------------------------------------------------- */
+/* ---------------------------------------------------------------
+   NOTIFICACIONES PROGRAMADAS — clientes pendientes por pagar
+   Se revisa cada 30 segundos si es la hora configurada (por defecto
+   12:00 m. y 4:00 p.m., hora de Colombia) y, si es así, se le avisa
+   a cada usuario cuántos clientes activos tiene sin pagar hoy.
+   --------------------------------------------------------------- */
+function pendingCountFor(usuario){
+  const misClientes = usuario.rol === 'admin' ? DB.clientes : DB.clientes.filter(c=>c.cobradorId===usuario.id);
+  const ids = new Set(misClientes.map(c=>c.id));
+  const misPrestamos = DB.prestamos.filter(p=>p.estado==='activo' && ids.has(p.clienteId));
+  return misPrestamos.filter(p=>diasEnMora(p) > 0).length;
+}
+
+function horaActualEn(timezone, now){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, hourCycle:'h23', hour:'2-digit', minute:'2-digit',
+    year:'numeric', month:'2-digit', day:'2-digit'
+  }).formatToParts(now || new Date());
+  const map = {};
+  parts.forEach(p=>{ map[p.type] = p.value; });
+  return { hour: Number(map.hour), minute: Number(map.minute), dateKey: `${map.year}-${map.month}-${map.day}` };
+}
+
+let lastNotifySlot = null;
+async function runNotificationScheduler(){
+  if(!webpush) return;
+  const { hour, minute, dateKey } = horaActualEn(NOTIFY_TIMEZONE);
+  const match = NOTIFY_TIMES.find(t=>t.h===hour && t.m===minute);
+  if(!match) return;
+  const slotKey = `${dateKey}-${match.h}:${match.m}`;
+  if(lastNotifySlot === slotKey) return; // ya se envió en este mismo minuto/franja
+  lastNotifySlot = slotKey;
+
+  let cambios = false;
+  for(const usuario of DB.usuarios){
+    const subs = DB.pushSubs[usuario.id] || [];
+    if(!subs.length) continue;
+    const count = pendingCountFor(usuario);
+    if(count === 0) continue;
+    const payload = JSON.stringify({
+      title: DB.negocio.nombre,
+      body: `Tienes ${count} cliente${count===1?'':'s'} pendiente${count===1?'':'s'} por pagar hoy.`
+    });
+    for(const sub of subs.slice()){
+      try{ await webpush.sendNotification(sub, payload); }
+      catch(err){
+        if(err && (err.statusCode === 404 || err.statusCode === 410)){
+          DB.pushSubs[usuario.id] = DB.pushSubs[usuario.id].filter(s=>s.endpoint !== sub.endpoint);
+          cambios = true;
+        } else {
+          console.error('Error enviando notificación a', usuario.nombre, ':', err && err.message);
+        }
+      }
+    }
+  }
+  if(cambios) saveDB();
+}
+setInterval(runNotificationScheduler, 30*1000);
+
 const server = http.createServer(async (req, res)=>{
   const url = new URL(req.url, 'http://x');
   const pathname = url.pathname;
