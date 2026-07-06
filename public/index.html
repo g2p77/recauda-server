@@ -1571,6 +1571,7 @@ function makePhotoPad(globalName, previewElId){
 const ComprobantePad = makePhotoPad('ComprobantePad', 'comprobante-preview');
 const TarjetaPad = makePhotoPad('TarjetaPad', 'tarjeta-preview');
 const GastoComprobantePad = makePhotoPad('GastoComprobantePad', 'gasto-comprobante-preview');
+const PrendaPad = makePhotoPad('PrendaPad', 'prenda-preview');
 
 /* =========================================================
    UI — navegación, render de vistas y modales
@@ -2034,6 +2035,11 @@ const UI = {
         <div class="receipt-row"><span>Frecuencia</span><span>${activo.frecuencia}</span></div>
         <div class="receipt-row"><span>Cuota</span><span>${fmt(activo.cuota)}${activo.cuotaFinal && activo.cuotaFinal!==activo.cuota ? ' (última '+fmt(activo.cuotaFinal)+')' : ''}</span></div>
         <div class="receipt-row"><span>Cuotas pagadas</span><span>${activo.cuotasPagadas} / ${activo.numCuotas}</span></div>
+        ${activo.esPrenda ? `
+          <div class="receipt-row"><span>Tipo</span><span><span class="stamp warn">Sobre prenda</span></span></div>
+          ${activo.prendaDescripcion ? `<div style="margin-top:8px;"><div class="hint" style="margin:0 0 4px;">Descripción de la prenda</div><div style="font-size:13.5px;">${activo.prendaDescripcion}</div></div>` : ''}
+          ${photosOf(activo,'','fotosPrenda').length ? `<div style="margin-top:8px;"><div class="hint" style="margin:0 0 4px;">Fotos de la prenda</div>${photoGallery(photosOf(activo,'','fotosPrenda'))}</div>` : ''}
+        ` : ''}
         ${photosOf(activo,'tarjetaFirma','fotosTarjeta').length ? `<div style="margin-top:10px;"><div class="hint" style="margin:0 0 4px;">Tarjeta firmada</div>${photoGallery(photosOf(activo,'tarjetaFirma','fotosTarjeta'))}</div>` : ''}
         <div class="btn-row" style="margin-top:12px;">
           <button class="btn btn-primary" onclick="UI.openCobroFlow('${activo.id}')">${icon('cash',16)} Registrar cobro</button>
@@ -2207,6 +2213,23 @@ const UI = {
         <div class="hint" id="lf-preview">Completa los datos para ver el cálculo</div>
       </div>
       <div class="field">
+        <label>Tipo de préstamo</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'lf-es-prenda','no'); UI.togglePrendaField('lf');">Normal</button>
+          <button type="button" onclick="UI.segPick(this,'lf-es-prenda','si'); UI.togglePrendaField('lf');">Sobre prenda</button>
+        </div>
+        <input type="hidden" id="lf-es-prenda" value="no">
+      </div>
+      <div class="field" id="lf-prenda-field" style="display:none;">
+        <label>Descripción del objeto en garantía</label>
+        <textarea id="lf-prenda-descripcion" rows="2" placeholder="Ej: Televisor Samsung 42 pulgadas, serie ABC123" style="width:100%; padding:11px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--paper-line); background:#fff; font-size:14.5px; resize:vertical;"></textarea>
+        <label style="margin-top:10px;">Fotos de la prenda</label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('prenda-file').click()">${icon('camera',14)} Tomar/subir foto</button>
+        <div class="hint">Puedes agregar varias fotos</div>
+        <input type="file" id="prenda-file" accept="image/*" capture="environment" multiple style="display:none" onchange="PrendaPad.handleFiles(this.files); this.value='';">
+        <div id="prenda-preview"></div>
+      </div>
+      <div class="field">
         <label>Foto de la tarjeta (firmada por el cliente)</label>
         <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('tarjeta-file').click()">${icon('camera',14)} Tomar/subir foto</button>
         <div class="hint">Puedes agregar varias fotos</div>
@@ -2216,10 +2239,15 @@ const UI = {
       <button class="btn btn-primary" onclick="UI.submitLoanForm('${clienteId}')">Crear préstamo</button>
     `);
     TarjetaPad.reset();
+    PrendaPad.reset();
     ['lf-monto','lf-tasa','lf-cuotas'].forEach(id=>{
       document.getElementById(id).addEventListener('input', ()=>UI.updateLoanPreview());
     });
     document.getElementById('lf-frecuencia').addEventListener('change', ()=>UI.updateLoanPreview());
+  },
+  togglePrendaField(prefix){
+    const f = document.getElementById(prefix+'-prenda-field');
+    if(f) f.style.display = document.getElementById(prefix+'-es-prenda').value==='si' ? '' : 'none';
   },
   updateModoHint(){
     const modo = document.getElementById('lf-modo').value;
@@ -2257,8 +2285,13 @@ const UI = {
     const frecuencia = document.getElementById('lf-frecuencia').value;
     const modo = document.getElementById('lf-modo').value;
     if(!monto || !numCuotas){ this.toast('Ingresa el monto y las cuotas'); return; }
+    const esPrenda = document.getElementById('lf-es-prenda').value==='si';
     try{
-      await Api.crearPrestamo({ clienteId, monto, tasa, numCuotas, modo, frecuencia, fotosTarjeta: TarjetaPad.dataUrls });
+      await Api.crearPrestamo({
+        clienteId, monto, tasa, numCuotas, modo, frecuencia, fotosTarjeta: TarjetaPad.dataUrls,
+        esPrenda, prendaDescripcion: esPrenda ? document.getElementById('lf-prenda-descripcion').value.trim() : '',
+        fotosPrenda: esPrenda ? PrendaPad.dataUrls : []
+      });
       await this.refreshState();
       this.closeModal();
       this.toast('Préstamo creado');
@@ -2298,6 +2331,23 @@ const UI = {
         <div class="hint" id="rf-preview">Completa los datos para ver el cálculo</div>
       </div>
       <div class="field">
+        <label>Tipo de préstamo</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'rf-es-prenda','no'); UI.togglePrendaField('rf');">Normal</button>
+          <button type="button" onclick="UI.segPick(this,'rf-es-prenda','si'); UI.togglePrendaField('rf');">Sobre prenda</button>
+        </div>
+        <input type="hidden" id="rf-es-prenda" value="no">
+      </div>
+      <div class="field" id="rf-prenda-field" style="display:none;">
+        <label>Descripción del objeto en garantía</label>
+        <textarea id="rf-prenda-descripcion" rows="2" placeholder="Ej: Televisor Samsung 42 pulgadas, serie ABC123" style="width:100%; padding:11px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--paper-line); background:#fff; font-size:14.5px; resize:vertical;"></textarea>
+        <label style="margin-top:10px;">Fotos de la prenda</label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('prenda-file').click()">${icon('camera',14)} Tomar/subir foto</button>
+        <div class="hint">Puedes agregar varias fotos</div>
+        <input type="file" id="prenda-file" accept="image/*" capture="environment" multiple style="display:none" onchange="PrendaPad.handleFiles(this.files); this.value='';">
+        <div id="prenda-preview"></div>
+      </div>
+      <div class="field">
         <label>Foto de la tarjeta (firmada por el cliente)</label>
         <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('tarjeta-file').click()">${icon('camera',14)} Tomar/subir foto</button>
         <div class="hint">Puedes agregar varias fotos</div>
@@ -2307,6 +2357,7 @@ const UI = {
       <button class="btn btn-primary" onclick="UI.submitRenewForm('${prestamoId}','${clienteId}')">${icon('sparkle',16)} Renovar crédito</button>
     `);
     TarjetaPad.reset();
+    PrendaPad.reset();
     ['rf-monto','rf-tasa','rf-cuotas'].forEach(id=>{
       document.getElementById(id).addEventListener('input', ()=>UI.updateRenewPreview(prestamoId));
     });
@@ -2341,8 +2392,13 @@ const UI = {
     const frecuencia = document.getElementById('rf-frecuencia').value;
     const modo = document.getElementById('rf-modo').value;
     if(!monto || !numCuotas){ this.toast('Ingresa el monto y las cuotas'); return; }
+    const esPrenda = document.getElementById('rf-es-prenda').value==='si';
     try{
-      const { montoEntregado } = await Api.renovarPrestamo(prestamoId, { monto, tasa, numCuotas, modo, frecuencia, fotosTarjeta: TarjetaPad.dataUrls });
+      const { montoEntregado } = await Api.renovarPrestamo(prestamoId, {
+        monto, tasa, numCuotas, modo, frecuencia, fotosTarjeta: TarjetaPad.dataUrls,
+        esPrenda, prendaDescripcion: esPrenda ? document.getElementById('rf-prenda-descripcion').value.trim() : '',
+        fotosPrenda: esPrenda ? PrendaPad.dataUrls : []
+      });
       await this.refreshState();
       this.closeModal();
       this.toast(`Crédito renovado — entrega ${fmt(montoEntregado)} al cliente`);
@@ -2767,7 +2823,8 @@ const UI = {
       <div class="list-item">
         <div class="avatar">${u.nombre.slice(0,1).toUpperCase()}</div>
         <div class="info"><div class="name">${u.nombre}${u.id===miId?' (tú)':''}</div><div class="meta">${u.rol==='admin'?'Administrador':'Cobrador'}${u.tienePin?' · con PIN':' · sin PIN'}</div></div>
-        <div style="display:flex; gap:6px; flex-shrink:0;">
+        <div style="display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
+          ${esAdmin ? `<button class="btn btn-outline btn-sm" onclick="UI.showChangeName('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">Nombre</button>` : ''}
           ${(esAdmin || u.id===miId) ? `<button class="btn btn-outline btn-sm" onclick="UI.showChangePin('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">PIN</button>` : ''}
           ${esAdmin && u.id!==miId ? `<button class="btn btn-danger btn-sm" onclick="UI.deleteUsuario('${u.id}','${u.nombre.replace(/'/g,"\\'")}')">Eliminar</button>` : ''}
         </div>
@@ -2775,6 +2832,24 @@ const UI = {
     `).join('');
     const addBtn = document.getElementById('btn-agregar-cobrador');
     if(addBtn) addBtn.style.display = esAdmin ? '' : 'none';
+  },
+  showChangeName(id, nombre){
+    this.openModal(`
+      <div class="modal-title">Cambiar nombre</div>
+      <div class="field"><label>Nombre</label><input type="text" id="np-nombre" value="${nombre}"></div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="UI.submitChangeName('${id}')">Guardar nombre</button>
+    `);
+  },
+  async submitChangeName(id){
+    const nombre = document.getElementById('np-nombre').value.trim();
+    if(!nombre){ this.toast('Escribe un nombre'); return; }
+    try{
+      await Api.cambiarPin(id, { nombre });
+      await this.refreshState();
+      this.closeModal();
+      this.toast('Nombre actualizado');
+      this.renderEquipo();
+    } catch(e){ this.toast(e.message); }
   },
   showChangePin(id, nombre){
     this.openModal(`

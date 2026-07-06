@@ -491,6 +491,8 @@ async function api(req, res, pathname, method){
       id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
       numCuotas, cuota, cuotaFinal, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
       entregadoPor: me.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta'),
+      esPrenda: !!body.esPrenda, prendaDescripcion: body.esPrenda ? String(body.prendaDescripcion||'').trim() : '',
+      fotosPrenda: body.esPrenda && Array.isArray(body.fotosPrenda) ? body.fotosPrenda.filter(Boolean) : [],
       ubicacionEntrega: (body.lat!=null && body.lng!=null) ? { lat: Number(body.lat), lng: Number(body.lng) } : null
     };
     DB.prestamos.push(prestamo); saveDB();
@@ -525,7 +527,9 @@ async function api(req, res, pathname, method){
     const prestamoNuevo = {
       id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
       numCuotas, cuota, cuotaFinal, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
-      entregadoPor: me.id, montoEntregado, prestamoAnteriorId: prestamoViejo.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta')
+      entregadoPor: me.id, montoEntregado, prestamoAnteriorId: prestamoViejo.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta'),
+      esPrenda: !!body.esPrenda, prendaDescripcion: body.esPrenda ? String(body.prendaDescripcion||'').trim() : '',
+      fotosPrenda: body.esPrenda && Array.isArray(body.fotosPrenda) ? body.fotosPrenda.filter(Boolean) : []
     };
     prestamoViejo.estado = 'renovado';
     prestamoViejo.renovadoEn = new Date().toISOString();
