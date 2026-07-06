@@ -454,6 +454,7 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
         </div>
         <div class="section" style="padding-top:4px;">
           <div id="dash-onboarding"></div>
+          <div id="dash-gps-alert"></div>
           <div class="progress-wrap">
             <div class="row-between">
               <strong style="font-size:13.5px;">Progreso de cobranza de hoy</strong>
@@ -630,6 +631,18 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
               <input type="file" id="cfg-logo-file" accept="image/*" style="display:none" onchange="Config.subirLogo(this.files[0])">
             </div>
             <button class="btn btn-primary" onclick="Config.save()">Guardar cambios</button>
+          </div>
+          </div>
+
+          <div id="admin-only-zonas">
+          <div class="section-title">Rutas de cobro</div>
+          <div class="card">
+            <p class="hint" style="margin-top:0;">Define las rutas o zonas que tu equipo podrá elegir al crear o editar un cliente.</p>
+            <div class="tag-row" id="zonas-list" style="margin-bottom:10px;"></div>
+            <div class="btn-row">
+              <input type="text" id="zona-nueva" placeholder="Ej: Centro" style="flex:1; padding:11px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--paper-line); background:#fff;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="Config.agregarZona()">＋ Agregar</button>
+            </div>
           </div>
           </div>
 
@@ -1153,6 +1166,39 @@ const Config = {
     document.getElementById('cfg-logo').value = (STATE.negocio.logo||'').startsWith('data:') ? '' : STATE.negocio.logo;
     document.getElementById('cfg-recordatorios').checked = localStorage.getItem('recauda_notif_on') === '1';
     this.renderLogoPreview();
+    this.renderZonas();
+  },
+  renderZonas(){
+    const box = document.getElementById('zonas-list');
+    if(!box) return;
+    const zonas = STATE.negocio.zonas || [];
+    box.innerHTML = zonas.length ? zonas.map(z=>`
+      <span class="chip active" style="display:inline-flex; align-items:center; gap:6px;">${z}
+        <button type="button" onclick="Config.eliminarZona('${z.replace(/'/g,"\\'")}')" style="background:none; border:none; color:inherit; font-weight:700; padding:0; line-height:1; cursor:pointer;">${icon('x',10)}</button>
+      </span>`).join('') : `<span class="hint" style="margin:0;">Todavía no has agregado ninguna ruta</span>`;
+  },
+  async agregarZona(){
+    const input = document.getElementById('zona-nueva');
+    const nombre = input.value.trim();
+    if(!nombre) return;
+    const zonas = STATE.negocio.zonas || [];
+    if(zonas.some(z=>z.toLowerCase()===nombre.toLowerCase())){ UI.toast('Esa ruta ya existe'); return; }
+    try{
+      const { negocio } = await Api.actualizarNegocio({ zonas: [...zonas, nombre] });
+      STATE.negocio = negocio; cacheState();
+      input.value = '';
+      this.renderZonas();
+      UI.toast('Ruta agregada');
+    } catch(e){ UI.toast(e.message); }
+  },
+  async eliminarZona(nombre){
+    const zonas = (STATE.negocio.zonas || []).filter(z=>z!==nombre);
+    try{
+      const { negocio } = await Api.actualizarNegocio({ zonas });
+      STATE.negocio = negocio; cacheState();
+      this.renderZonas();
+      UI.toast('Ruta eliminada');
+    } catch(e){ UI.toast(e.message); }
   },
   renderLogoPreview(){
     const box = document.getElementById('cfg-logo-preview');
@@ -1358,56 +1404,113 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight){
   return y + lineHeight;
 }
 function dibujarPagareCanvas(p, cl, negocio){
-  const W = 900, H = 1200;
+  const W = 640, H = 720;
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = '#F8F2E2'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(40,40,W-80,H-80);
-  ctx.strokeStyle = '#DBCA9C'; ctx.lineWidth = 2; ctx.strokeRect(40,40,W-80,H-80);
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(24,24,W-48,H-48);
+  ctx.strokeStyle = '#DBCA9C'; ctx.lineWidth = 2; ctx.strokeRect(24,24,W-48,H-48);
 
-  let y = 110;
+  let y = 66;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#8A8064';
-  ctx.font = '600 16px Arial';
+  ctx.font = '600 14px Arial';
   ctx.fillText((negocio.nombre||'Recauda').toUpperCase(), W/2, y);
-  y += 46;
+  y += 38;
   ctx.fillStyle = '#173D30';
-  ctx.font = 'bold 42px Georgia, serif';
+  ctx.font = 'bold 34px Georgia, serif';
   ctx.fillText('PAGARÉ', W/2, y);
-  y += 30;
+  y += 20;
   ctx.strokeStyle = '#DBCA9C';
-  ctx.beginPath(); ctx.moveTo(100,y); ctx.lineTo(W-100,y); ctx.stroke();
-  y += 50;
+  ctx.beginPath(); ctx.moveTo(70,y); ctx.lineTo(W-70,y); ctx.stroke();
+  y += 34;
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#211C13';
-  ctx.font = '18px Arial';
-  const marginX = 100, maxWidth = W-200, lineHeight = 30;
+  ctx.font = '21px Arial';
+  const marginX = 46, maxWidth = W-92, lineHeight = 27;
 
   const cedulaTxt = cl.cedula ? `, identificado(a) con cédula de ciudadanía No. ${cl.cedula},` : ', identificado(a) con cédula de ciudadanía,';
   const texto1 = `Por medio del presente documento, yo ${cl.nombre}${cedulaTxt} declaro deber y pagar incondicionalmente a ${negocio.nombre} la suma de ${fmt(p.total)}, correspondiente a un préstamo recibido el ${fmtDate(p.fechaInicio)}.`;
-  y = wrapText(ctx, texto1, marginX, y, maxWidth, lineHeight) + 20;
+  y = wrapText(ctx, texto1, marginX, y, maxWidth, lineHeight) + 12;
 
   const cuotaFinalTxt = p.cuotaFinal && p.cuotaFinal!==p.cuota ? ` (la última cuota es de ${fmt(p.cuotaFinal)})` : '';
   const texto2 = `Este monto se pagará en ${p.numCuotas} cuotas de frecuencia ${p.frecuencia} por valor de ${fmt(p.cuota)} cada una${cuotaFinalTxt}, hasta cancelar la totalidad de la deuda.`;
-  y = wrapText(ctx, texto2, marginX, y, maxWidth, lineHeight) + 20;
+  y = wrapText(ctx, texto2, marginX, y, maxWidth, lineHeight) + 12;
 
   const texto3 = `En caso de incumplimiento, acepto las acciones de cobro que la ley permita.`;
   y = wrapText(ctx, texto3, marginX, y, maxWidth, lineHeight);
 
-  y = Math.max(y+120, H-260);
+  y += 46;
   ctx.strokeStyle = '#211C13';
-  ctx.beginPath(); ctx.moveTo(W/2-150, y); ctx.lineTo(W/2+150, y); ctx.stroke();
-  y += 26;
+  ctx.beginPath(); ctx.moveTo(W/2-120, y); ctx.lineTo(W/2+120, y); ctx.stroke();
+  y += 22;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#8A8064';
-  ctx.font = '15px Arial';
+  ctx.font = '14px Arial';
   ctx.fillText(`Firma de ${cl.nombre}`, W/2, y);
 
-  ctx.font = '12px Arial';
-  ctx.fillText(`Generado el ${new Date().toLocaleDateString('es-CO', {day:'2-digit', month:'long', year:'numeric'})}`, W/2, H-70);
+  y += 28;
+  ctx.font = '11px Arial';
+  ctx.fillText(`Generado el ${new Date().toLocaleDateString('es-CO', {day:'2-digit', month:'long', year:'numeric'})}`, W/2, y);
+
+  return canvas;
+}
+
+function dibujarReciboCanvas(c, p, cl, cobrador, negocio){
+  const cuotaActual = p ? (p.saldo<=0 ? p.numCuotas : Math.min(p.numCuotas, p.cuotasPagadas+1)) : null;
+  const totalPagado = p ? (p.total - p.saldo) : 0;
+  const filas = [
+    ['Cliente', cl ? cl.nombre : '—'],
+    ['Fecha', fmtDate(c.fecha)],
+    ['Método', c.metodo === 'transferencia' ? 'Transferencia' : 'Efectivo'],
+    ['Cobrador', cobrador ? cobrador.nombre : '—']
+  ];
+  if(p) filas.push(['Cuota', `${cuotaActual} de ${p.numCuotas}`]);
+  filas.push(['Total pagado', fmt(totalPagado)]);
+  filas.push(['Saldo restante', fmt(p ? p.saldo : 0)]);
+
+  const W = 640, headerH = 168, rowH = 42, footerH = 44;
+  const H = headerH + filas.length*rowH + footerH;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#0F2A22'; ctx.fillRect(0,0,W,headerH);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '600 15px Arial';
+  ctx.fillText((negocio.nombre||'Recauda').toUpperCase(), W/2, 42);
+  ctx.fillStyle = '#E3ECE4';
+  ctx.font = '14px Arial';
+  ctx.fillText('Recibo de pago', W/2, 64);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 38px Arial';
+  ctx.fillText(fmt(c.monto), W/2, 122);
+
+  let y = headerH + 32;
+  filas.forEach(([label, value])=>{
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8A8064';
+    ctx.font = '15px Arial';
+    ctx.fillText(label, 40, y);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#211C13';
+    ctx.font = 'bold 17px Arial';
+    ctx.fillText(String(value), W-40, y);
+    ctx.strokeStyle = '#DBCA9C';
+    ctx.beginPath(); ctx.moveTo(40, y+14); ctx.lineTo(W-40, y+14); ctx.stroke();
+    y += rowH;
+  });
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8A8064';
+  ctx.font = '11px Arial';
+  ctx.fillText(`Generado el ${new Date().toLocaleDateString('es-CO', {day:'2-digit', month:'long', year:'numeric'})}`, W/2, H-18);
 
   return canvas;
 }
@@ -1639,7 +1742,7 @@ const UI = {
 
   applyRoleVisibility(){
     const esAdmin = Auth.currentUser().rol === 'admin';
-    ['admin-only-negocio','admin-only-mapa','admin-only-datos'].forEach(id=>{
+    ['admin-only-negocio','admin-only-zonas','admin-only-mapa','admin-only-datos'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.style.display = esAdmin ? '' : 'none';
     });
@@ -1726,6 +1829,38 @@ const UI = {
     const hoyList = activos.filter(p=>Loans.diasEnMora(p)===0).slice(0,5);
     document.getElementById('dash-today-list').innerHTML = hoyList.length ? hoyList.map(p=>this.renderClientRow(p)).join('') :
       `<div class="empty" style="padding:22px 20px;">${this.emptyIll()}<p>No hay préstamos activos al día</p></div>`;
+
+    this.renderGpsAlert();
+  },
+  async renderGpsAlert(){
+    const box = document.getElementById('dash-gps-alert');
+    if(!box) return;
+    const u = Auth.currentUser();
+    const cobradores = STATE.usuarios.filter(x=>x.rol==='cobrador');
+    if(u.rol !== 'admin' || !cobradores.length){ box.innerHTML = ''; return; }
+    try{
+      const data = await Api.obtenerUbicaciones();
+      const LIMITE_MIN = 20;
+      const sinGps = cobradores.filter(c=>{
+        const puntos = data[c.id];
+        if(!puntos || !puntos.length) return true;
+        const ultimo = puntos[puntos.length-1];
+        const mins = (Date.now() - new Date(ultimo.fecha).getTime())/60000;
+        return mins > LIMITE_MIN;
+      });
+      if(!sinGps.length){ box.innerHTML = ''; return; }
+      const nombres = sinGps.map(c=>c.nombre).join(', ');
+      box.innerHTML = `
+        <div class="card" style="background:var(--red-pale); border-color:var(--red-700); margin-bottom:10px;">
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <div style="flex-shrink:0;">⚠️</div>
+            <div>
+              <div style="font-weight:700; font-size:13.5px; color:var(--red-700);">GPS inactivo</div>
+              <div class="hint" style="margin:2px 0 0;">${nombres} — ${sinGps.length===1?'no ha compartido su ubicación reciente. Pídele':'no han compartido su ubicación reciente. Pídeles'} que abra${sinGps.length===1?'':'n'} la app y acepte${sinGps.length===1?'':'n'} el permiso de ubicación.</div>
+            </div>
+          </div>
+        </div>`;
+    } catch(e){ box.innerHTML = ''; }
   },
 
   setCounter(id, text){
@@ -1805,7 +1940,13 @@ const UI = {
       <div class="field"><label>Número de cédula</label><input type="text" inputmode="numeric" id="cf-cedula" placeholder="1 234 567 890"></div>
       <div class="field"><label>Teléfono</label><input type="tel" id="cf-telefono" placeholder="300 000 0000"></div>
       <div class="field"><label>Dirección</label><input type="text" id="cf-direccion" placeholder="Calle / barrio"></div>
-      <div class="field"><label>Zona / ruta</label><input type="text" id="cf-zona" placeholder="Ej: Centro, Ruta 1"></div>
+      <div class="field"><label>Zona / ruta</label>
+        <select id="cf-zona">
+          <option value="">Sin zona</option>
+          ${(STATE.negocio.zonas||[]).map(z=>`<option value="${z}">${z}</option>`).join('')}
+        </select>
+        ${Auth.currentUser().rol==='admin' ? `<div class="hint">¿Falta una ruta? Agrégala en Más → Rutas de cobro.</div>` : ''}
+      </div>
       <div class="field"><label>Cobrador asignado</label>
         <select id="cf-cobrador">
           ${cobradores.map(c=>`<option value="${c.id}" ${c.id===u.id?'selected':''}>${c.nombre}</option>`).join('')}
@@ -1822,7 +1963,7 @@ const UI = {
       cedula: document.getElementById('cf-cedula').value.trim(),
       telefono: document.getElementById('cf-telefono').value.trim(),
       direccion: document.getElementById('cf-direccion').value.trim(),
-      zona: document.getElementById('cf-zona').value.trim(),
+      zona: document.getElementById('cf-zona').value,
       cobradorId: document.getElementById('cf-cobrador').value
     };
     try{
@@ -1923,7 +2064,12 @@ const UI = {
       <div class="field"><label>Número de cédula</label><input type="text" inputmode="numeric" id="ec-cedula" value="${cl.cedula||''}"></div>
       <div class="field"><label>Teléfono</label><input type="tel" id="ec-telefono" value="${cl.telefono||''}"></div>
       <div class="field"><label>Dirección</label><input type="text" id="ec-direccion" value="${cl.direccion||''}"></div>
-      <div class="field"><label>Zona</label><input type="text" id="ec-zona" value="${cl.zona||''}"></div>
+      <div class="field"><label>Zona</label>
+        <select id="ec-zona">
+          <option value="">Sin zona</option>
+          ${[...new Set([...(STATE.negocio.zonas||[]), ...(cl.zona?[cl.zona]:[])])].map(z=>`<option value="${z}" ${z===cl.zona?'selected':''}>${z}</option>`).join('')}
+        </select>
+      </div>
       <div class="field"><label>Cobrador</label>
         <select id="ec-cobrador">${STATE.usuarios.map(u=>`<option value="${u.id}" ${u.id===cl.cobradorId?'selected':''}>${u.nombre}</option>`).join('')}</select>
       </div>
@@ -2280,13 +2426,34 @@ const UI = {
       </div>
       <div class="btn-row">
         <button class="btn btn-outline" onclick="window.print()">${icon('print',16)} Imprimir</button>
-        ${c.reciboUrl ? `<a class="btn btn-outline" style="text-decoration:none;" target="_blank" href="${c.reciboUrl}">${icon('doc',16)} PDF</a>` : ''}
+        <button class="btn btn-primary" onclick="UI.compartirReciboImagen('${cobroId}')">${icon('share',16)} Compartir imagen</button>
       </div>
-      <a class="btn btn-primary" style="text-decoration:none; margin-top:8px;" target="_blank"
-         href="https://wa.me/${(cl.telefono||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Recibo de pago: '+fmt(c.monto)+' - '+STATE.negocio.nombre+' - '+fmtDate(c.fecha)+(c.reciboUrl?'\n\nDescarga tu comprobante en PDF: '+c.reciboUrl:''))}">
-         ${icon('whatsapp',16)} Enviar por WhatsApp</a>
     `;
     this.openModal(html);
+  },
+  async compartirReciboImagen(cobroId){
+    const c = STATE.cobros.find(x=>x.id===cobroId);
+    const p = STATE.prestamos.find(x=>x.id===c.prestamoId);
+    const cl = STATE.clientes.find(x=>x.id===c.clienteId);
+    const cobrador = STATE.usuarios.find(u=>u.id===c.cobradorId);
+    this.toast('Generando imagen...');
+    const canvas = dibujarReciboCanvas(c, p, cl, cobrador, STATE.negocio);
+    canvas.toBlob(async (blob)=>{
+      if(!blob){ this.toast('No se pudo generar la imagen'); return; }
+      const filename = `recibo-${cl.nombre.replace(/\s+/g,'_')}.png`;
+      const file = new File([blob], filename, { type: 'image/png' });
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: 'Recibo de pago', text: `Recibo de pago — ${STATE.negocio.nombre}` });
+          return;
+        } catch(err){ if(err.name === 'AbortError') return; }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      this.toast('Imagen descargada — compártela desde tu galería');
+    }, 'image/png', 0.95);
   },
 
   /* ---------------- DOCUMENTO: PAGARÉ ---------------- */
