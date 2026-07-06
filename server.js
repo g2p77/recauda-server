@@ -29,6 +29,12 @@ let webpush = null;
 try { webpush = require('web-push'); }
 catch(e){ console.warn('[ZaJu Tech] "web-push" no está instalado todavía (ejecuta "npm install"). Las notificaciones programadas quedarán desactivadas hasta entonces; el resto de la app funciona con normalidad.'); }
 
+// pdfkit genera el PDF del comprobante de pago que se puede enviar por WhatsApp.
+// Igual que web-push: si no está instalada, esa función queda desactivada sin afectar al resto.
+let PDFDocument = null;
+try { PDFDocument = require('pdfkit'); }
+catch(e){ console.warn('[ZaJu Tech] "pdfkit" no está instalado todavía (ejecuta "npm install"). Los PDF de recibo quedarán desactivados hasta entonces.'); }
+
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -36,6 +42,7 @@ const SECRET_FILE = path.join(DATA_DIR, 'secret.txt');
 const VAPID_FILE = path.join(DATA_DIR, 'vapid.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const TOKEN_TTL_MS = 30 * 24 * 3600 * 1000; // 30 días
+const RECEIPT_TOKEN_TTL_MS = 365 * 24 * 3600 * 1000; // 1 año — el link del PDF de un recibo dura bastante, es un comprobante, no una sesión
 
 // Notificaciones diarias de "clientes pendientes por pagar"
 const NOTIFY_TIMES = [{ h: 12, m: 0 }, { h: 16, m: 0 }]; // 12:00 m. y 4:00 p.m.
@@ -188,6 +195,74 @@ function diasEnMora(prestamo){
 }
 
 /* ---------------------------------------------------------------
+   PDF del recibo de pago (para descargar o enviar por WhatsApp)
+   --------------------------------------------------------------- */
+function reciboUrlPara(cobroId, req){
+  if(!PDFDocument) return null;
+  const proto = req.headers['x-forwarded-proto'] || 'http';
+  const host = req.headers.host;
+  const token = signToken({ cid: cobroId, exp: Date.now() + RECEIPT_TOKEN_TTL_MS });
+  return `${proto}://${host}/api/recibo/${cobroId}?t=${token}`;
+}
+
+// Normaliza fotos enviadas desde el cliente: acepta el campo singular (compatibilidad con
+// versiones viejas de la app) o el nuevo campo plural (varias fotos), y siempre guarda ambos.
+function normalizePhotos(body, singular, plural){
+  const arr = Array.isArray(body[plural]) ? body[plural].filter(Boolean) : (body[singular] ? [body[singular]] : []);
+  return { [singular]: arr[0] || null, [plural]: arr };
+}
+
+function formatMoneda(n, moneda){
+  const sym = ({COP:'$', MXN:'$', PEN:'S/', BRL:'R$', USD:'$'})[moneda] || '$';
+  return sym + Math.round(n||0).toLocaleString('es-CO');
+}
+
+function buildReciboPDF(res, { cobro, prestamo, cliente, cobrador, negocio }){
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  doc.pipe(res);
+
+  const verdeOscuro = '#0F2A22';
+  const dorado = '#B9862A';
+  const muted = '#8A8064';
+  const W = doc.page.width;
+
+  // Franja superior
+  doc.rect(0, 0, W, 150).fill(verdeOscuro);
+  doc.fillColor('#FFFFFF').fontSize(11).font('Helvetica-Bold')
+     .text((negocio.nombre || 'Recauda').toUpperCase(), 50, 40, { characterSpacing: 1 });
+  doc.fillColor('#E3ECE4').fontSize(10).font('Helvetica').text('Recibo de pago', 50, 58);
+  doc.fillColor('#FFFFFF').fontSize(34).font('Helvetica-Bold')
+     .text(formatMoneda(cobro.monto, negocio.moneda), 50, 85);
+
+  // Cuerpo
+  let y = 185;
+  const cuotaActual = prestamo ? (prestamo.saldo <= 0 ? prestamo.numCuotas : Math.min(prestamo.numCuotas, prestamo.cuotasPagadas + 1)) : null;
+  const totalPagado = prestamo ? (prestamo.total - prestamo.saldo) : 0;
+  const filas = [
+    ['Cliente', cliente ? cliente.nombre : '—'],
+    ['Fecha', new Date(cobro.fecha).toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' })],
+    ['Método', cobro.metodo === 'transferencia' ? 'Transferencia' : 'Efectivo'],
+    ['Cobrador', cobrador ? cobrador.nombre : '—'],
+    ['Cuota', prestamo ? `${cuotaActual} de ${prestamo.numCuotas}` : '—'],
+    ['Total pagado', formatMoneda(totalPagado, negocio.moneda)],
+    ['Saldo restante', formatMoneda(prestamo ? prestamo.saldo : 0, negocio.moneda)]
+  ];
+  filas.forEach(([label, value])=>{
+    doc.fillColor(muted).fontSize(10).font('Helvetica').text(label, 50, y);
+    doc.fillColor('#211C13').fontSize(11).font('Helvetica-Bold').text(value, 300, y, { width: 245, align: 'right' });
+    doc.moveTo(50, y + 20).lineTo(W - 50, y + 20).lineWidth(0.5).strokeColor('#DBCA9C').stroke();
+    y += 32;
+  });
+
+  doc.fillColor(dorado).fontSize(9).font('Helvetica-Bold')
+     .text('COMPROBANTE GENERADO AUTOMÁTICAMENTE', 50, y + 20, { characterSpacing: 0.5 });
+  doc.fillColor(muted).fontSize(9).font('Helvetica')
+     .text('Guarda este recibo como constancia de tu pago.', 50, y + 34);
+
+  doc.end();
+}
+
+/* ---------------------------------------------------------------
    Helpers HTTP
    --------------------------------------------------------------- */
 function send(res, status, data){
@@ -257,13 +332,13 @@ function gastosVisibles(user){
   if(user.rol === 'admin') return DB.gastos;
   return DB.gastos.filter(g => g.cobradorId === user.id);
 }
-function stateFor(user){
+function stateFor(user, req){
   return {
     negocio: DB.negocio,
     usuarios: DB.usuarios.map(publicUser),
     clientes: clientesVisibles(user),
     prestamos: prestamosVisibles(user),
-    cobros: cobrosVisibles(user),
+    cobros: cobrosVisibles(user).map(c => ({ ...c, reciboUrl: reciboUrlPara(c.id, req) })),
     visitas: visitasVisibles(user),
     gastos: gastosVisibles(user),
     yo: user
@@ -313,6 +388,23 @@ async function api(req, res, pathname, method){
     return send(res, 200, { publicKey: VAPID.publicKey });
   }
 
+  // Público (con token firmado en la URL): PDF de un recibo de pago, para
+  // poder abrirlo desde WhatsApp sin que el cliente tenga una sesión.
+  if(pathname.startsWith('/api/recibo/') && method === 'GET'){
+    if(!PDFDocument) return send(res, 503, { error: 'Los PDF no están disponibles en este servidor todavía' });
+    const cobroId = pathname.split('/')[3];
+    const token = new URL(req.url, 'http://x').searchParams.get('t');
+    const data = verifyToken(token);
+    if(!data || data.cid !== cobroId) return send(res, 403, { error: 'Enlace inválido o expirado' });
+    const cobro = DB.cobros.find(c=>c.id===cobroId);
+    if(!cobro) return send(res, 404, { error: 'Recibo no encontrado' });
+    const prestamo = DB.prestamos.find(p=>p.id===cobro.prestamoId);
+    const cliente = DB.clientes.find(c=>c.id===cobro.clienteId);
+    const cobrador = DB.usuarios.find(u=>u.id===cobro.cobradorId);
+    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="recibo-${cobroId}.pdf"` });
+    return buildReciboPDF(res, { cobro, prestamo, cliente, cobrador, negocio: DB.negocio });
+  }
+
   if(pathname === '/api/login' && method === 'POST'){
     const ip = req.socket.remoteAddress || 'ip';
     if(tooManyAttempts(ip)) return send(res, 429, { error: 'Demasiados intentos. Espera unos minutos.' });
@@ -353,7 +445,7 @@ async function api(req, res, pathname, method){
   }
 
   if(pathname === '/api/state' && method === 'GET'){
-    return send(res, 200, stateFor(me));
+    return send(res, 200, stateFor(me, req));
   }
 
   if(pathname === '/api/usuarios' && method === 'POST'){
@@ -407,6 +499,7 @@ async function api(req, res, pathname, method){
     if(!body.nombre) return send(res, 400, { error: 'Falta el nombre del cliente' });
     const cliente = {
       id: uid('cl'), nombre: String(body.nombre).trim(),
+      cedula: body.cedula ? String(body.cedula).trim() : '',
       telefono: body.telefono || '', direccion: body.direccion || '', zona: body.zona || '',
       cobradorId: body.cobradorId || me.id
     };
@@ -428,7 +521,8 @@ async function api(req, res, pathname, method){
     } else {
       const body = await readBody(req);
       Object.assign(cliente, {
-        nombre: body.nombre ?? cliente.nombre, telefono: body.telefono ?? cliente.telefono,
+        nombre: body.nombre ?? cliente.nombre, cedula: body.cedula ?? cliente.cedula,
+        telefono: body.telefono ?? cliente.telefono,
         direccion: body.direccion ?? cliente.direccion, zona: body.zona ?? cliente.zona,
         cobradorId: body.cobradorId ?? cliente.cobradorId
       });
@@ -448,7 +542,7 @@ async function api(req, res, pathname, method){
     const prestamo = {
       id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
       numCuotas, cuota, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
-      entregadoPor: me.id,
+      entregadoPor: me.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta'),
       ubicacionEntrega: (body.lat!=null && body.lng!=null) ? { lat: Number(body.lat), lng: Number(body.lng) } : null
     };
     DB.prestamos.push(prestamo); saveDB();
@@ -465,6 +559,34 @@ async function api(req, res, pathname, method){
     return send(res, 200, { prestamo });
   }
 
+  // Renovar un préstamo activo: crea uno nuevo y descuenta el saldo pendiente del anterior.
+  // El saldo trasladado NO se registra como cobro (no infla efectivo/transferencia/recuperado en Reportes).
+  if(pathname.startsWith('/api/prestamos/') && pathname.endsWith('/renovar') && method === 'PUT'){
+    const id = pathname.split('/')[3];
+    const prestamoViejo = DB.prestamos.find(p=>p.id===id);
+    if(!prestamoViejo) return send(res, 404, { error: 'Préstamo no encontrado' });
+    const cliente = DB.clientes.find(c=>c.id===prestamoViejo.clienteId);
+    if(me.rol !== 'admin' && cliente.cobradorId !== me.id) return send(res, 403, { error: 'No autorizado' });
+    if(prestamoViejo.estado !== 'activo') return send(res, 400, { error: 'Este préstamo ya no está activo' });
+    const body = await readBody(req);
+    const monto = Number(body.monto), tasa = Number(body.tasa)||0, numCuotas = Number(body.numCuotas);
+    if(!monto || !numCuotas) return send(res, 400, { error: 'Monto y número de cuotas son obligatorios' });
+    if(monto < prestamoViejo.saldo) return send(res, 400, { error: `El nuevo monto debe ser al menos ${prestamoViejo.saldo} (el saldo pendiente)` });
+    const montoEntregado = monto - prestamoViejo.saldo;
+    const { total, cuota } = calcularPrestamo(monto, tasa, numCuotas, body.modo, body.frecuencia);
+    const prestamoNuevo = {
+      id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: body.modo, frecuencia: body.frecuencia,
+      numCuotas, cuota, total, saldo: total, cuotasPagadas: 0, fechaInicio: new Date().toISOString().slice(0,10), estado: 'activo',
+      entregadoPor: me.id, montoEntregado, prestamoAnteriorId: prestamoViejo.id, ...normalizePhotos(body, 'tarjetaFirma', 'fotosTarjeta')
+    };
+    prestamoViejo.estado = 'renovado';
+    prestamoViejo.renovadoEn = new Date().toISOString();
+    prestamoViejo.renovadoPorPrestamoId = prestamoNuevo.id;
+    DB.prestamos.push(prestamoNuevo);
+    saveDB();
+    return send(res, 200, { prestamoAnterior: prestamoViejo, prestamoNuevo, montoEntregado });
+  }
+
   if(pathname === '/api/cobros' && method === 'POST'){
     const body = await readBody(req);
     const prestamo = DB.prestamos.find(p=>p.id===body.prestamoId);
@@ -476,11 +598,13 @@ async function api(req, res, pathname, method){
     const cobro = {
       id: uid('c'), prestamoId: prestamo.id, clienteId: prestamo.clienteId, monto,
       fecha: new Date().toISOString(), cobradorId: me.id, metodo: body.metodo || 'efectivo',
-      firma: body.firma || null, comprobante: body.comprobante || null
+      firma: body.firma || null, ...normalizePhotos(body, 'comprobante', 'comprobantes')
     };
     DB.cobros.push(cobro);
     prestamo.saldo = Math.max(0, prestamo.saldo - monto);
-    prestamo.cuotasPagadas += 1;
+    // Las cuotas pagadas se derivan de cuánto se ha recuperado del total, no de un conteo fijo por cobro:
+    // un abono parcial avanza menos de una cuota, y un adelanto puede saltar varias de una vez.
+    prestamo.cuotasPagadas = Math.min(prestamo.numCuotas, Math.round((prestamo.total - prestamo.saldo) / prestamo.cuota));
     if(prestamo.saldo <= 0) prestamo.estado = 'pagado';
     saveDB();
     return send(res, 200, { cobro, prestamo });
@@ -516,6 +640,7 @@ async function api(req, res, pathname, method){
     const gasto = {
       id: uid('g'), concepto: String(body.concepto).trim(), monto,
       categoria: body.categoria || 'otro', cobradorId,
+      comprobantes: Array.isArray(body.comprobantes) ? body.comprobantes : [],
       fecha: new Date().toISOString()
     };
     DB.gastos.push(gasto); saveDB();

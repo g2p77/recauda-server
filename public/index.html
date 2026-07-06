@@ -135,10 +135,17 @@ svg{display:block;}
 }
 .navbtn{
   flex:1; background:none; border:none; display:flex; flex-direction:column;
-  align-items:center; gap:3px; padding:6px 2px; color:var(--muted);
-  font-size:10.5px; font-weight:600; border-radius:10px;
+  align-items:center; gap:3px; padding:6px 2px 5px; color:var(--muted);
+  font-size:10.5px; font-weight:600; border-radius:10px; position:relative;
 }
-.navbtn svg{width:21px;height:21px; stroke:var(--muted); transition:stroke .15s;}
+.navbtn svg{width:21px;height:21px; stroke:var(--muted); transition:stroke .15s; position:relative; z-index:1;}
+.navbtn span{position:relative; z-index:1;}
+.navbtn::before{
+  content:''; position:absolute; top:1px; left:50%; width:38px; height:26px; border-radius:10px;
+  background:var(--green-pale); transform:translateX(-50%) scale(0.6); opacity:0;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1), opacity .2s ease;
+}
+.navbtn.active::before{transform:translateX(-50%) scale(1); opacity:1;}
 .navbtn.active{color:var(--green-700);}
 .navbtn.active svg{stroke:var(--green-700);}
 
@@ -166,16 +173,41 @@ main{flex:1; overflow-y:auto; padding-bottom:8px;}
 .stat-card{
   background:var(--green-950); background-image:linear-gradient(150deg,var(--green-700),var(--green-950));
   color:#fff; border-radius:var(--radius); padding:14px 16px; position:relative; overflow:hidden;
+  transition:transform .15s ease;
 }
+.stat-card::after{
+  content:''; position:absolute; top:-22px; right:-22px; width:84px; height:84px; border-radius:50%;
+  background:rgba(255,255,255,0.07); pointer-events:none;
+}
+.stat-card:active{transform:scale(0.98);}
 .stat-card.alt{background:var(--gold-600); background-image:linear-gradient(150deg,#CE9C3E,var(--gold-700)); color:#2B1F08;}
-.stat-card .label{font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; opacity:.85; font-weight:600;}
-.stat-card .counter{display:flex; margin-top:6px;}
+.stat-card .label{font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; opacity:.9; font-weight:600; position:relative;}
+.stat-card .counter{display:flex; margin-top:6px; position:relative;}
 .stat-card .counter span{
   font-family:var(--font-mono); font-size:21px; font-weight:700;
   display:inline-block; transition:transform .25s ease, opacity .25s ease;
 }
 .stat-card .counter.bump span{animation:bump .3s ease;}
 @keyframes bump{0%{transform:translateY(0);} 40%{transform:translateY(-4px);} 100%{transform:translateY(0);}}
+
+/* indicador de tendencia (reportes) */
+.trend{
+  display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:700;
+  padding:3px 8px; border-radius:20px; margin-top:6px;
+}
+.trend.up{color:var(--green-700); background:var(--success-pale);}
+.trend.down{color:var(--red-700); background:var(--red-pale);}
+
+/* selector de día (reporte diario) */
+.rep-day-nav{display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:10px;}
+.rep-day-btn{
+  width:32px; height:32px; border-radius:50%; border:1.5px solid var(--paper-line); background:#fff;
+  color:var(--green-700); font-size:17px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, background .12s ease;
+}
+.rep-day-btn:active{transform:scale(0.92); background:var(--paper-dark);}
+.rep-day-btn[disabled]{opacity:.35; color:var(--muted);}
+.rep-day-label{font-family:var(--font-display); font-weight:600; font-size:15px; min-width:110px; text-align:center; text-transform:capitalize;}
 
 .progress-wrap{background:#fff; border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:10px; border:1px solid var(--paper-line);}
 .progress-bar-bg{height:10px; background:var(--paper-dark); border-radius:6px; overflow:hidden; margin-top:9px;}
@@ -185,7 +217,17 @@ main{flex:1; overflow-y:auto; padding-bottom:8px;}
 .list-item{
   display:flex; align-items:center; gap:12px; background:#fff; border-radius:var(--radius);
   padding:12px 14px; margin-bottom:8px; box-shadow:var(--shadow); border:1px solid var(--paper-line);
+  transition:background .15s ease, transform .1s ease;
 }
+.list-item[onclick]:active{background:var(--paper-dark); transform:scale(0.99);}
+
+/* placeholders de carga */
+.skeleton{
+  background:linear-gradient(90deg, var(--paper-dark) 25%, #F3EAD2 37%, var(--paper-dark) 63%);
+  background-size:400% 100%; animation:skeletonLoading 1.4s ease infinite; border-radius:8px; color:transparent !important;
+}
+.skeleton *{visibility:hidden;}
+@keyframes skeletonLoading{0%{background-position:100% 50%;}100%{background-position:0 50%;}}
 .avatar{
   width:42px;height:42px; border-radius:50%; background:var(--green-pale); color:var(--green-700);
   display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--font-display);
@@ -213,8 +255,9 @@ main{flex:1; overflow-y:auto; padding-bottom:8px;}
 .btn{
   display:inline-flex; align-items:center; justify-content:center; gap:7px;
   padding:13px 18px; border-radius:var(--radius-sm); border:none; font-weight:700; font-size:14.5px;
-  width:100%; transition:transform .1s ease;
+  width:100%; transition:transform .1s ease, box-shadow .12s ease; text-decoration:none;
 }
+.btn:active{transform:scale(0.96);}
 .btn svg{width:16px;height:16px;}
 .btn-primary{background:var(--green-700); color:#fff;}
 .btn-primary:active{background:var(--green-800);}
@@ -285,6 +328,7 @@ main{flex:1; overflow-y:auto; padding-bottom:8px;}
 .modal-overlay{
   position:fixed; inset:0; background:rgba(20,17,10,0.55); z-index:50; display:none;
   align-items:flex-end; justify-content:center;
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
 }
 .modal-overlay.active{display:flex;}
 .modal-sheet{
@@ -306,9 +350,18 @@ main{flex:1; overflow-y:auto; padding-bottom:8px;}
   background:#fff; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px;
   position:relative;
 }
-.receipt-head{background:var(--green-950); background-image:linear-gradient(160deg,var(--green-700),var(--green-950)); color:#fff; padding:20px; text-align:center;}
-.receipt-head .biz{font-family:var(--font-display); font-weight:600; font-size:16px;}
-.receipt-head .amt{font-family:var(--font-mono); font-size:31px; font-weight:700; margin-top:6px;}
+.receipt-head{
+  background:var(--green-950); background-image:linear-gradient(160deg,var(--green-700),var(--green-950)); color:#fff; padding:20px; text-align:center;
+  position:relative; overflow:hidden;
+}
+.receipt-head::before{
+  content:''; position:absolute; inset:0;
+  background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+  background-size:14px 14px; pointer-events:none;
+}
+.receipt-head .biz{font-family:var(--font-display); font-weight:600; font-size:16px; position:relative;}
+.receipt-head .amt{font-family:var(--font-mono); font-size:31px; font-weight:700; margin-top:6px; position:relative; animation:popIn .32s cubic-bezier(.34,1.56,.64,1);}
+@keyframes popIn{from{transform:scale(0.8); opacity:0;} to{transform:scale(1); opacity:1;}}
 .receipt-perf{
   height:14px; background:
     radial-gradient(circle 5px at 10px 0, transparent 5px, #fff 5.5px) top/20px 14px repeat-x,
@@ -421,6 +474,7 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
           <div class="btn-row gap-8">
             <button class="btn btn-primary" id="btn-cobrar-rapido"></button>
             <button class="btn btn-outline" id="btn-cliente-rapido"></button>
+            <button class="btn btn-outline" id="btn-gasto-rapido"></button>
           </div>
           <div class="section-title">Clientes en mora</div>
           <div id="dash-mora-list"></div>
@@ -471,6 +525,31 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
           <p>Cómo va tu cartera y tu equipo</p>
         </div>
         <div class="section">
+          <div class="section-title">Reporte diario</div>
+          <div class="rep-day-nav">
+            <button type="button" class="rep-day-btn" onclick="UI.cambiarRepDia(-1)">‹</button>
+            <div class="rep-day-label" id="rep-dia-label">Hoy</div>
+            <button type="button" class="rep-day-btn" id="rep-dia-next" onclick="UI.cambiarRepDia(1)">›</button>
+          </div>
+          <div class="card" id="rep-dia-hero">
+            <div class="row-between">
+              <div>
+                <div class="hint" style="margin:0;">Cobrado ese día</div>
+                <div style="font-family:var(--font-mono); font-weight:700; font-size:26px; margin-top:2px;" id="rep-dia-total">$0</div>
+                <div id="rep-dia-trend"></div>
+              </div>
+              <div id="rep-dia-donut"></div>
+            </div>
+            <div class="hint" id="rep-dia-clientes" style="margin-top:10px;"></div>
+            <div class="hint" id="rep-dia-metodos" style="margin-top:4px; display:flex; gap:12px;"></div>
+            <hr class="sep">
+            <div class="row-between"><span class="hint" style="margin:0;">Gastos del día</span><span id="rep-dia-gastos-total" style="font-family:var(--font-mono); font-weight:700; color:var(--red-700);">$0</span></div>
+            <div class="row-between"><span class="hint" style="margin:0;">Neto del día</span><span id="rep-dia-neto" style="font-family:var(--font-mono); font-weight:700;">$0</span></div>
+          </div>
+          <div id="rep-dia-gastos-list"></div>
+          <div id="rep-dia-cobradores"></div>
+
+          <div class="section-title">Totales generales</div>
           <div class="stat-grid gap-8">
             <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Capital prestado</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-capital">$0</div></div>
             <div class="card flat" style="text-align:center;"><div class="hint" style="margin:0;">Intereses generados</div><div style="font-family:var(--font-mono);font-weight:700;font-size:17px; margin-top:4px;" id="rep-interes">$0</div></div>
@@ -635,6 +714,18 @@ const ICONS = {
 };
 function icon(name, size){ return ICONS[name] ? ICONS[name].replace('<svg ', `<svg style="width:${size||18}px;height:${size||18}px" `) : ''; }
 
+// Lee fotos de un registro aceptando tanto el campo plural nuevo (varias fotos) como el
+// campo singular viejo (compatibilidad con datos guardados antes de soportar varias fotos).
+function photosOf(obj, singular, plural){
+  if(obj[plural] && obj[plural].length) return obj[plural];
+  return obj[singular] ? [obj[singular]] : [];
+}
+function photoGallery(urls, size){
+  size = size || 78;
+  if(!urls.length) return '';
+  return `<div style="display:flex; flex-wrap:wrap; gap:8px;">${urls.map(u=>`<a href="${u}" target="_blank"><img src="${u}" style="width:${size}px; height:${size}px; object-fit:cover; border-radius:8px; border:1px solid var(--paper-line);"></a>`).join('')}</div>`;
+}
+
 /* =========================================================
    API — comunicación con el servidor propio (mismo origen)
    ========================================================= */
@@ -672,7 +763,10 @@ const Api = {
   editarCliente(id, d){ return this.request('PUT', '/api/clientes/'+id, d); },
   eliminarCliente(id){ return this.request('DELETE', '/api/clientes/'+id); },
   crearPrestamo(d){ return this.request('POST', '/api/prestamos', d); },
+  renovarPrestamo(id, d){ return this.request('PUT', '/api/prestamos/'+id+'/renovar', d); },
   registrarCobro(d){ return this.request('POST', '/api/cobros', d); },
+  registrarGasto(d){ return this.request('POST', '/api/gastos', d); },
+  eliminarGasto(id){ return this.request('DELETE', '/api/gastos/'+id); },
   actualizarNegocio(d){ return this.request('PUT', '/api/negocio', d); },
   vapidKey(){ return this.request('GET', '/api/push/vapid-public-key', undefined, false); },
   pushSubscribe(subscription){ return this.request('POST', '/api/push/subscribe', { subscription }); },
@@ -828,6 +922,19 @@ const Reports = {
     const morPct = activos.length ? Math.round((enMora/activos.length)*100) : 0;
     const { efectivo, transferencia } = Payments.porMetodo();
     return {capital, interes, recuperado, morPct, efectivo, transferencia};
+  },
+  porDia(fechaISO){
+    const cobrosDia = STATE.cobros.filter(c=>c.fecha.slice(0,10)===fechaISO);
+    const total = cobrosDia.reduce((s,c)=>s+c.monto,0);
+    const clientesUnicos = new Set(cobrosDia.map(c=>c.clienteId)).size;
+    const { efectivo, transferencia } = Payments.porMetodo(cobrosDia);
+    const porCobrador = STATE.usuarios.map(u=>{
+      const monto = cobrosDia.filter(c=>c.cobradorId===u.id).reduce((s,c)=>s+c.monto,0);
+      return { cobradorId: u.id, nombre: u.nombre, monto };
+    }).filter(x=>x.monto>0).sort((a,b)=>b.monto-a.monto);
+    const gastosDia = (STATE.gastos||[]).filter(g=>g.fecha.slice(0,10)===fechaISO).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    const totalGastos = gastosDia.reduce((s,g)=>s+g.monto,0);
+    return { total, clientesUnicos, efectivo, transferencia, porCobrador, gastosDia, totalGastos, neto: total - totalGastos };
   },
   exportCSV(tipo){
     let rows = [];
@@ -1105,27 +1212,39 @@ function resizeImageFile(file, maxDim, quality){
 }
 
 /* =========================================================
-   COMPROBANTE DE TRANSFERENCIA — foto opcional adjunta al cobro
+   FOTOS — componente reutilizable para adjuntar una o varias
+   fotos (comprobantes, tarjeta firmada, gastos), con opción de
+   tomar la foto directamente con la cámara del celular.
    ========================================================= */
-const ComprobantePad = {
-  dataUrl: null,
-  reset(){
-    this.dataUrl = null;
-    const prev = document.getElementById('comprobante-preview');
-    if(prev) prev.innerHTML = '';
-  },
-  async handleFile(file){
-    if(!file) return;
-    UI.toast('Preparando comprobante...');
-    try{
-      this.dataUrl = await resizeImageFile(file, 1000, 0.82);
-      const prev = document.getElementById('comprobante-preview');
-      if(prev) prev.innerHTML = `<img src="${this.dataUrl}" style="width:100%; border-radius:10px; margin-top:8px; border:1px solid var(--paper-line);">`;
-      UI.toast('Comprobante listo');
-    } catch(err){ UI.toast(err.message || 'No se pudo procesar el comprobante'); }
-  }
-};
-
+function makePhotoPad(globalName, previewElId){
+  return {
+    dataUrls: [],
+    reset(){ this.dataUrls = []; this._render(); },
+    async handleFiles(fileList){
+      const files = Array.from(fileList || []);
+      if(!files.length) return;
+      UI.toast(files.length>1 ? 'Preparando fotos...' : 'Preparando foto...');
+      try{
+        for(const file of files){ this.dataUrls.push(await resizeImageFile(file, 1000, 0.82)); }
+        this._render();
+        UI.toast(files.length>1 ? 'Fotos listas' : 'Foto lista');
+      } catch(err){ UI.toast(err.message || 'No se pudo procesar la foto'); }
+    },
+    removeAt(i){ this.dataUrls.splice(i,1); this._render(); },
+    _render(){
+      const prev = document.getElementById(previewElId);
+      if(!prev) return;
+      prev.innerHTML = this.dataUrls.map((u,i)=>`
+        <div style="position:relative; display:inline-block; margin:8px 8px 0 0;">
+          <img src="${u}" style="width:78px; height:78px; object-fit:cover; border-radius:8px; border:1px solid var(--paper-line);">
+          <button type="button" onclick="${globalName}.removeAt(${i})" style="position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; background:var(--red-700); color:#fff; border:none; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center;">${icon('x',10)}</button>
+        </div>`).join('');
+    }
+  };
+}
+const ComprobantePad = makePhotoPad('ComprobantePad', 'comprobante-preview');
+const TarjetaPad = makePhotoPad('TarjetaPad', 'tarjeta-preview');
+const GastoComprobantePad = makePhotoPad('GastoComprobantePad', 'gasto-comprobante-preview');
 
 /* =========================================================
    UI — navegación, render de vistas y modales
@@ -1138,8 +1257,10 @@ const UI = {
     document.getElementById('modal-close-btn').innerHTML = icon('x',15);
     document.getElementById('btn-cobrar-rapido').innerHTML = icon('cash',17)+' Cobrar';
     document.getElementById('btn-cliente-rapido').innerHTML = icon('plus',17)+' Cliente';
+    document.getElementById('btn-gasto-rapido').innerHTML = icon('receipt',17)+' Gasto';
     document.getElementById('btn-cobrar-rapido').addEventListener('click', ()=>UI.openCobroFlow());
     document.getElementById('btn-cliente-rapido').addEventListener('click', ()=>UI.showClientForm());
+    document.getElementById('btn-gasto-rapido').addEventListener('click', ()=>UI.showGastoForm());
     document.getElementById('fab-cliente').innerHTML = icon('plus',24);
     document.getElementById('fab-cliente').addEventListener('click', ()=>UI.showClientForm());
     document.querySelectorAll('.navbtn').forEach(b=>{ b.innerHTML = icon(b.dataset.icon,21) + '<span>'+b.textContent+'</span>'; });
@@ -1201,7 +1322,7 @@ const UI = {
       document.title = nombre || 'ZaJu Tech';
     }).catch(()=>{ /* si no hay conexión, se queda con el nombre genérico */ });
     const wrap = document.getElementById('login-users');
-    wrap.innerHTML = `<div class="center hint">Conectando con el servidor...</div>`;
+    wrap.innerHTML = [1,2].map(()=>`<div class="skeleton" style="height:66px; margin-bottom:10px;"></div>`).join('');
     try{
       const team = await Api.team();
       wrap.innerHTML = team.map(u=>`
@@ -1460,7 +1581,7 @@ const UI = {
   },
   filterClients(term){
     term = term.toLowerCase();
-    const list = this.clientesVisibles().filter(c=>c.nombre.toLowerCase().includes(term));
+    const list = this.clientesVisibles().filter(c=>c.nombre.toLowerCase().includes(term) || (c.cedula||'').includes(term));
     const box = document.getElementById('clientes-list');
     box.innerHTML = list.map(cl=>{
       const p = Loans.activoDeCliente(cl.id);
@@ -1478,6 +1599,7 @@ const UI = {
     this.openModal(`
       <div class="modal-title">Nuevo cliente</div>
       <div class="field"><label>Nombre completo</label><input type="text" id="cf-nombre" placeholder="Ej: María González"></div>
+      <div class="field"><label>Número de cédula</label><input type="text" inputmode="numeric" id="cf-cedula" placeholder="1 234 567 890"></div>
       <div class="field"><label>Teléfono</label><input type="tel" id="cf-telefono" placeholder="300 000 0000"></div>
       <div class="field"><label>Dirección</label><input type="text" id="cf-direccion" placeholder="Calle / barrio"></div>
       <div class="field"><label>Zona / ruta</label><input type="text" id="cf-zona" placeholder="Ej: Centro, Ruta 1"></div>
@@ -1494,6 +1616,7 @@ const UI = {
     if(!nombre){ this.toast('Escribe el nombre del cliente'); return; }
     const cliente = {
       nombre,
+      cedula: document.getElementById('cf-cedula').value.trim(),
       telefono: document.getElementById('cf-telefono').value.trim(),
       direccion: document.getElementById('cf-direccion').value.trim(),
       zona: document.getElementById('cf-zona').value.trim(),
@@ -1520,7 +1643,7 @@ const UI = {
         <div style="display:flex; align-items:center; gap:12px;">
           <div class="avatar" style="width:52px;height:52px;font-size:19px;">${cl.nombre.slice(0,1).toUpperCase()}</div>
           <div><div style="font-weight:700; font-size:17px;">${cl.nombre}</div>
-          <div class="hint" style="margin:0;">${cl.telefono||'Sin teléfono'} · ${cobrador?cobrador.nombre:'Sin asignar'}</div></div>
+          <div class="hint" style="margin:0;">${cl.cedula?('CC '+cl.cedula+' · '):''}${cl.telefono||'Sin teléfono'} · ${cobrador?cobrador.nombre:'Sin asignar'}</div></div>
         </div>
         <hr class="sep">
         <div class="hint" style="margin:0 0 4px;">${icon('pin',13)} ${cl.direccion||'Sin dirección'} ${cl.zona?('· '+cl.zona):''}</div>
@@ -1545,10 +1668,14 @@ const UI = {
         <div class="receipt-row"><span>Frecuencia</span><span>${activo.frecuencia}</span></div>
         <div class="receipt-row"><span>Cuota</span><span>${fmt(activo.cuota)}</span></div>
         <div class="receipt-row"><span>Cuotas pagadas</span><span>${activo.cuotasPagadas} / ${activo.numCuotas}</span></div>
+        ${photosOf(activo,'tarjetaFirma','fotosTarjeta').length ? `<div style="margin-top:10px;"><div class="hint" style="margin:0 0 4px;">Tarjeta firmada</div>${photoGallery(photosOf(activo,'tarjetaFirma','fotosTarjeta'))}</div>` : ''}
         <div class="btn-row" style="margin-top:12px;">
           <button class="btn btn-primary" onclick="UI.openCobroFlow('${activo.id}')">${icon('cash',16)} Registrar cobro</button>
         </div>
-        <button class="btn btn-outline" style="margin-top:8px;" onclick="UI.showDocumento('${activo.id}')">${icon('doc',16)} Generar pagaré</button>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-outline" onclick="UI.showDocumento('${activo.id}')">${icon('doc',16)} Generar pagaré</button>
+          <button class="btn btn-outline" onclick="UI.showRenewForm('${activo.id}','${clienteId}')">${icon('sparkle',16)} Renovar crédito</button>
+        </div>
       </div>`;
     } else {
       html += `
@@ -1559,12 +1686,24 @@ const UI = {
       </div>`;
     }
 
+    const anteriores = prestamos.filter(p=>p.estado!=='activo');
+    if(anteriores.length){
+      const badge = { pagado: 'ok', renovado: 'warn', perdida: 'danger' };
+      const label = { pagado: 'Pagado', renovado: 'Renovado', perdida: 'Pérdida' };
+      html += `<div class="section-title">Préstamos anteriores</div>`;
+      html += anteriores.map(p=>`
+        <div class="list-item">
+          <div class="avatar">${icon('doc',18)}</div>
+          <div class="info"><div class="name">${fmt(p.monto)}</div><div class="meta"><span class="stamp ${badge[p.estado]||'muted'}">${label[p.estado]||p.estado}</span> · ${fmtDate(p.fechaInicio)}</div></div>
+        </div>`).join('');
+    }
+
     const historial = STATE.cobros.filter(c=>c.clienteId===clienteId).sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,10);
     html += `<div class="section-title">Historial de cobros</div>`;
     html += historial.length ? historial.map(c=>`
       <div class="list-item" onclick="UI.showReceipt('${c.id}')">
         <div class="avatar" style="background:var(--success-pale); color:var(--success);">${icon('check',16)}</div>
-        <div class="info"><div class="name">${fmt(c.monto)}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}${c.comprobante?' · con comprobante':''}</div></div>
+        <div class="info"><div class="name">${fmt(c.monto)}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}${photosOf(c,'comprobante','comprobantes').length?' · con comprobante':''}</div></div>
         <div class="right small-link">Ver recibo</div>
       </div>`).join('') : `<div class="empty" style="padding:20px;"><p>Sin cobros registrados todavía</p></div>`;
 
@@ -1578,6 +1717,7 @@ const UI = {
     this.openModal(`
       <div class="modal-title">Editar cliente</div>
       <div class="field"><label>Nombre</label><input type="text" id="ec-nombre" value="${cl.nombre}"></div>
+      <div class="field"><label>Número de cédula</label><input type="text" inputmode="numeric" id="ec-cedula" value="${cl.cedula||''}"></div>
       <div class="field"><label>Teléfono</label><input type="tel" id="ec-telefono" value="${cl.telefono||''}"></div>
       <div class="field"><label>Dirección</label><input type="text" id="ec-direccion" value="${cl.direccion||''}"></div>
       <div class="field"><label>Zona</label><input type="text" id="ec-zona" value="${cl.zona||''}"></div>
@@ -1590,6 +1730,7 @@ const UI = {
   async saveClientEdit(id){
     const patch = {
       nombre: document.getElementById('ec-nombre').value.trim(),
+      cedula: document.getElementById('ec-cedula').value.trim(),
       telefono: document.getElementById('ec-telefono').value.trim(),
       direccion: document.getElementById('ec-direccion').value.trim(),
       zona: document.getElementById('ec-zona').value.trim(),
@@ -1611,6 +1752,55 @@ const UI = {
       await this.refreshState();
       this.toast('Cliente eliminado');
       this.goto('clientes');
+    } catch(e){ this.toast(e.message); }
+  },
+
+  /* ---------------- GASTOS ---------------- */
+  showGastoForm(){
+    this.openModal(`
+      <div class="modal-title">Registrar gasto</div>
+      <div class="field"><label>Concepto</label><input type="text" id="gf-concepto" placeholder="Ej: Gasolina, papelería..."></div>
+      <div class="field"><label>Monto</label><input type="number" id="gf-monto" placeholder="20000"></div>
+      <div class="field"><label>Categoría</label>
+        <select id="gf-categoria">
+          <option value="transporte">Transporte</option>
+          <option value="papeleria">Papelería</option>
+          <option value="alimentacion">Alimentación</option>
+          <option value="otro" selected>Otro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Comprobante (opcional)</label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('gasto-comprobante-file').click()">${icon('camera',14)} Tomar/subir foto</button>
+        <div class="hint">Puedes agregar varias fotos</div>
+        <input type="file" id="gasto-comprobante-file" accept="image/*" capture="environment" multiple style="display:none" onchange="GastoComprobantePad.handleFiles(this.files); this.value='';">
+        <div id="gasto-comprobante-preview" style="margin-top:6px;"></div>
+      </div>
+      <button class="btn btn-primary" onclick="UI.submitGastoForm()">Guardar gasto</button>
+    `);
+    GastoComprobantePad.reset();
+  },
+  async submitGastoForm(){
+    const concepto = document.getElementById('gf-concepto').value.trim();
+    const monto = Number(document.getElementById('gf-monto').value);
+    const categoria = document.getElementById('gf-categoria').value;
+    if(!concepto){ this.toast('Escribe el concepto del gasto'); return; }
+    if(!monto || monto<=0){ this.toast('Ingresa un monto válido'); return; }
+    try{
+      await Api.registrarGasto({ concepto, monto, categoria, comprobantes: GastoComprobantePad.dataUrls });
+      await this.refreshState();
+      this.closeModal();
+      this.toast('Gasto registrado');
+      if(this.currentView==='reportes') this.renderReporteDiario();
+    } catch(e){ this.toast(e.message); }
+  },
+  async eliminarGastoRapido(id){
+    if(!confirm('¿Eliminar este gasto?')) return;
+    try{
+      await Api.eliminarGasto(id);
+      await this.refreshState();
+      this.renderReporteDiario();
+      this.toast('Gasto eliminado');
     } catch(e){ this.toast(e.message); }
   },
 
@@ -1645,8 +1835,16 @@ const UI = {
       <div class="field">
         <div class="hint" id="lf-preview">Completa los datos para ver el cálculo</div>
       </div>
+      <div class="field">
+        <label>Foto de la tarjeta (firmada por el cliente)</label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('tarjeta-file').click()">${icon('camera',14)} Tomar/subir foto</button>
+        <div class="hint">Puedes agregar varias fotos</div>
+        <input type="file" id="tarjeta-file" accept="image/*" capture="environment" multiple style="display:none" onchange="TarjetaPad.handleFiles(this.files); this.value='';">
+        <div id="tarjeta-preview"></div>
+      </div>
       <button class="btn btn-primary" onclick="UI.submitLoanForm('${clienteId}')">Crear préstamo</button>
     `);
+    TarjetaPad.reset();
     ['lf-monto','lf-tasa','lf-cuotas'].forEach(id=>{
       document.getElementById(id).addEventListener('input', ()=>UI.updateLoanPreview());
     });
@@ -1688,10 +1886,92 @@ const UI = {
     const modo = document.getElementById('lf-modo').value;
     if(!monto || !numCuotas){ this.toast('Ingresa el monto y las cuotas'); return; }
     try{
-      await Api.crearPrestamo({ clienteId, monto, tasa, numCuotas, modo, frecuencia });
+      await Api.crearPrestamo({ clienteId, monto, tasa, numCuotas, modo, frecuencia, fotosTarjeta: TarjetaPad.dataUrls });
       await this.refreshState();
       this.closeModal();
       this.toast('Préstamo creado');
+      this.openClienteDetalle(clienteId);
+    } catch(e){ this.toast(e.message); }
+  },
+
+  /* ---------------- RENOVAR CRÉDITO ---------------- */
+  showRenewForm(prestamoId, clienteId){
+    const p = STATE.prestamos.find(x=>x.id===prestamoId);
+    this.openModal(`
+      <div class="modal-title">Renovar crédito</div>
+      <div class="hint" style="margin-top:-8px; margin-bottom:12px;">Saldo pendiente a descontar: <b>${fmt(p.saldo)}</b></div>
+      <div class="field"><label>Monto del nuevo préstamo</label><input type="number" id="rf-monto" placeholder="500000"></div>
+      <div class="field"><label>Frecuencia de cobro</label>
+        <select id="rf-frecuencia">
+          <option value="diario">Diario</option>
+          <option value="semanal">Semanal</option>
+          <option value="quincenal">Quincenal</option>
+          <option value="mensual">Mensual</option>
+        </select>
+      </div>
+      <div class="field"><label>Número de cuotas</label><input type="number" id="rf-cuotas" placeholder="20"></div>
+      <div class="field"><label>Modo de interés</label>
+        <div class="seg">
+          <button type="button" class="active" onclick="UI.segPick(this,'rf-modo','fijo'); UI.updateRenewPreview('${prestamoId}');">Fijo</button>
+          <button type="button" onclick="UI.segPick(this,'rf-modo','recalculado'); UI.updateRenewPreview('${prestamoId}');">Recalculado</button>
+          <button type="button" onclick="UI.segPick(this,'rf-modo','capitalizacion'); UI.updateRenewPreview('${prestamoId}');">Capitaliz.</button>
+        </div>
+        <input type="hidden" id="rf-modo" value="fijo">
+      </div>
+      <div class="field">
+        <label>Tasa de interés mensual (%)</label>
+        <input type="number" step="1" min="0" inputmode="numeric" id="rf-tasa" placeholder="20" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <div class="field">
+        <div class="hint" id="rf-preview">Completa los datos para ver el cálculo</div>
+      </div>
+      <div class="field">
+        <label>Foto de la tarjeta (firmada por el cliente)</label>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('tarjeta-file').click()">${icon('camera',14)} Tomar/subir foto</button>
+        <div class="hint">Puedes agregar varias fotos</div>
+        <input type="file" id="tarjeta-file" accept="image/*" capture="environment" multiple style="display:none" onchange="TarjetaPad.handleFiles(this.files); this.value='';">
+        <div id="tarjeta-preview"></div>
+      </div>
+      <button class="btn btn-primary" onclick="UI.submitRenewForm('${prestamoId}','${clienteId}')">${icon('sparkle',16)} Renovar crédito</button>
+    `);
+    TarjetaPad.reset();
+    ['rf-monto','rf-tasa','rf-cuotas'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', ()=>UI.updateRenewPreview(prestamoId));
+    });
+    document.getElementById('rf-frecuencia').addEventListener('change', ()=>UI.updateRenewPreview(prestamoId));
+  },
+  updateRenewPreview(prestamoId){
+    const p = STATE.prestamos.find(x=>x.id===prestamoId);
+    const monto = Number(document.getElementById('rf-monto').value)||0;
+    const tasa = Number(document.getElementById('rf-tasa').value)||0;
+    const cuotas = Number(document.getElementById('rf-cuotas').value)||0;
+    const modo = document.getElementById('rf-modo').value;
+    const frecuencia = document.getElementById('rf-frecuencia').value;
+    const prev = document.getElementById('rf-preview');
+    if(monto>0 && cuotas>0){
+      const {total, cuota} = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
+      const montoEntregar = monto - p.saldo;
+      let html = `Total a pagar: <b>${fmt(total)}</b> · Cuota: <b>${fmt(cuota)}</b><br>`;
+      if(montoEntregar < 0){
+        html += `<span style="color:var(--red-700); font-weight:600;">⚠ El monto debe ser al menos ${fmt(p.saldo)} (el saldo pendiente)</span>`;
+      } else {
+        html += `Se entrega al cliente: <b>${fmt(montoEntregar)}</b>`;
+      }
+      prev.innerHTML = html;
+    } else { prev.textContent = 'Completa los datos para ver el cálculo'; }
+  },
+  async submitRenewForm(prestamoId, clienteId){
+    const monto = Number(document.getElementById('rf-monto').value);
+    const tasa = Number(document.getElementById('rf-tasa').value)||0;
+    const numCuotas = Number(document.getElementById('rf-cuotas').value);
+    const frecuencia = document.getElementById('rf-frecuencia').value;
+    const modo = document.getElementById('rf-modo').value;
+    if(!monto || !numCuotas){ this.toast('Ingresa el monto y las cuotas'); return; }
+    try{
+      const { montoEntregado } = await Api.renovarPrestamo(prestamoId, { monto, tasa, numCuotas, modo, frecuencia, fotosTarjeta: TarjetaPad.dataUrls });
+      await this.refreshState();
+      this.closeModal();
+      this.toast(`Crédito renovado — entrega ${fmt(montoEntregado)} al cliente`);
       this.openClienteDetalle(clienteId);
     } catch(e){ this.toast(e.message); }
   },
@@ -1728,8 +2008,9 @@ const UI = {
       </div>
       <div class="field" id="comprobante-field" style="display:none;">
         <label>Foto del comprobante</label>
-        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('comprobante-file').click()">${icon('camera',14)} Subir comprobante</button>
-        <input type="file" id="comprobante-file" accept="image/*" style="display:none" onchange="ComprobantePad.handleFile(this.files[0])">
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('comprobante-file').click()">${icon('camera',14)} Tomar/subir foto</button>
+        <div class="hint">Puedes agregar varias fotos</div>
+        <input type="file" id="comprobante-file" accept="image/*" capture="environment" multiple style="display:none" onchange="ComprobantePad.handleFiles(this.files); this.value='';">
         <div id="comprobante-preview"></div>
       </div>
       <div class="field">
@@ -1753,9 +2034,9 @@ const UI = {
     const metodo = document.getElementById('pay-metodo').value;
     if(!monto || monto<=0){ this.toast('Ingresa un monto válido'); return; }
     const firma = SignaturePad.dataURL();
-    const comprobante = ComprobantePad.dataUrl;
+    const comprobantes = ComprobantePad.dataUrls;
     try{
-      const { cobro } = await Api.registrarCobro({ prestamoId, monto, metodo, firma, comprobante });
+      const { cobro } = await Api.registrarCobro({ prestamoId, monto, metodo, firma, comprobantes });
       await this.refreshState();
       this.toast('Cobro registrado ✓');
       this.showReceipt(cobro.id);
@@ -1769,6 +2050,8 @@ const UI = {
     const p = STATE.prestamos.find(x=>x.id===c.prestamoId);
     const cl = STATE.clientes.find(x=>x.id===c.clienteId);
     const cobrador = STATE.usuarios.find(u=>u.id===c.cobradorId);
+    const cuotaActual = p ? (p.saldo<=0 ? p.numCuotas : Math.min(p.numCuotas, p.cuotasPagadas+1)) : null;
+    const totalPagado = p ? (p.total - p.saldo) : 0;
     const html = `
       <div class="receipt">
         <div class="receipt-head">
@@ -1782,17 +2065,20 @@ const UI = {
           <div class="receipt-row"><span>Fecha</span><span>${fmtDate(c.fecha)}</span></div>
           <div class="receipt-row"><span>Método</span><span>${c.metodo}</span></div>
           <div class="receipt-row"><span>Cobrador</span><span>${cobrador?cobrador.nombre:'—'}</span></div>
+          ${p ? `<div class="receipt-row"><span>Cuota</span><span>${cuotaActual} de ${p.numCuotas}</span></div>` : ''}
+          <div class="receipt-row"><span>Total pagado</span><span>${fmt(totalPagado)}</span></div>
           <div class="receipt-row"><span>Saldo restante</span><span>${fmt(p?p.saldo:0)}</span></div>
         </div>
         ${c.firma ? `<div class="receipt-sig"><img src="${c.firma}"><div class="cap">Firma del cliente</div></div>` : ''}
-        ${c.comprobante ? `<div class="receipt-sig"><img src="${c.comprobante}" style="max-width:100%; max-height:220px; border-radius:8px;"><div class="cap">Comprobante de transferencia</div></div>` : ''}
+        ${photosOf(c,'comprobante','comprobantes').length ? `<div class="receipt-sig">${photoGallery(photosOf(c,'comprobante','comprobantes'), 90)}<div class="cap">Comprobante de transferencia</div></div>` : ''}
       </div>
       <div class="btn-row">
         <button class="btn btn-outline" onclick="window.print()">${icon('print',16)} Imprimir</button>
-        <a class="btn btn-primary" style="text-decoration:none;" target="_blank"
-           href="https://wa.me/${(cl.telefono||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Recibo de pago: '+fmt(c.monto)+' - '+STATE.negocio.nombre+' - '+fmtDate(c.fecha))}">
-           ${icon('whatsapp',16)} Enviar</a>
+        ${c.reciboUrl ? `<a class="btn btn-outline" style="text-decoration:none;" target="_blank" href="${c.reciboUrl}">${icon('doc',16)} PDF</a>` : ''}
       </div>
+      <a class="btn btn-primary" style="text-decoration:none; margin-top:8px;" target="_blank"
+         href="https://wa.me/${(cl.telefono||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Recibo de pago: '+fmt(c.monto)+' - '+STATE.negocio.nombre+' - '+fmtDate(c.fecha)+(c.reciboUrl?'\n\nDescarga tu comprobante en PDF: '+c.reciboUrl:''))}">
+         ${icon('whatsapp',16)} Enviar por WhatsApp</a>
     `;
     this.openModal(html);
   },
@@ -1851,23 +2137,121 @@ const UI = {
 
   /* ---------------- REPORTES ---------------- */
   repRango: 'dia',
+  repDia: todayISO(),
   setRepRango(rango, btn){
     this.repRango = rango;
     [...btn.parentElement.children].forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     this.renderReportesChart();
   },
+  cambiarRepDia(delta){
+    const d = new Date(this.repDia+'T00:00:00');
+    d.setDate(d.getDate()+delta);
+    const iso = d.toISOString().slice(0,10);
+    if(iso > todayISO()) return;
+    this.repDia = iso;
+    this.renderReporteDiario();
+  },
   renderReportesChart(){
     const serie = this.repRango === 'mes' ? Payments.ultimosNMeses(6) : Payments.ultimosNDias(7);
     const max = Math.max(1, ...serie.map(d=>d.total));
+    const n = serie.length;
+    const pts = serie.map((d,i)=>({ x: n>1 ? i*(300/(n-1)) : 150, y: 100 - (d.total/max)*86 }));
+    const line = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+    const area = `${line} L${pts[pts.length-1].x.toFixed(1)},100 L${pts[0].x.toFixed(1)},100 Z`;
     document.getElementById('rep-chart-wrap').innerHTML = `
-      <div style="display:flex; align-items:flex-end; gap:8px; height:110px;">
-        ${serie.map(d=>`
-          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
-            <div style="width:100%; max-width:26px; background:linear-gradient(180deg,var(--green-500),var(--green-700)); border-radius:5px 5px 2px 2px; height:${Math.max(4,(d.total/max)*82)}px;" title="${fmt(d.total)}"></div>
-            <div style="font-size:9.5px; color:var(--muted); margin-top:6px; text-transform:capitalize;">${d.dow}</div>
-          </div>`).join('')}
+      <svg viewBox="0 0 300 100" preserveAspectRatio="none" style="width:100%; height:110px; overflow:visible;">
+        <defs>
+          <linearGradient id="repChartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" style="stop-color:var(--green-500); stop-opacity:0.35"/>
+            <stop offset="100%" style="stop-color:var(--green-500); stop-opacity:0"/>
+          </linearGradient>
+        </defs>
+        <path d="${area}" style="fill:url(#repChartGrad); stroke:none;"/>
+        <path d="${line}" style="fill:none; stroke:var(--green-500); stroke-width:2.2;" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        ${pts.map((p,i)=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" style="fill:var(--green-700);"><title>${serie[i].dow}: ${fmt(serie[i].total)}</title></circle>`).join('')}
+      </svg>
+      <div style="display:flex; gap:4px; margin-top:4px;">
+        ${serie.map(d=>`<div style="flex:1; text-align:center; font-size:9.5px; color:var(--muted); text-transform:capitalize;">${d.dow}</div>`).join('')}
       </div>`;
+  },
+  renderDonutSVG(elId, segments, totalOverride){
+    const total = totalOverride != null ? totalOverride : segments.reduce((s,x)=>s+x.value,0);
+    const r = 34, cx = 42, cy = 42, sw = 13;
+    const circumference = 2*Math.PI*r;
+    let offset = 0;
+    const arcs = total > 0
+      ? segments.filter(s=>s.value>0).map(s=>{
+          const len = (s.value/total)*circumference;
+          const html = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" style="stroke:${s.color}; stroke-width:${sw};" stroke-dasharray="${len.toFixed(1)} ${(circumference-len).toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}"/>`;
+          offset += len;
+          return html;
+        }).join('')
+      : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" style="stroke:var(--paper-line); stroke-width:${sw};"/>`;
+    const pct = total > 0 && segments[0] ? Math.round((segments[0].value/total)*100) : null;
+    document.getElementById(elId).innerHTML = `
+      <div style="position:relative; width:84px; height:84px; flex-shrink:0;">
+        <svg viewBox="0 0 84 84" style="width:100%; height:100%; transform:rotate(-90deg);">${arcs}</svg>
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:700; font-size:12px;">${pct!=null ? pct+'%' : '—'}</div>
+      </div>`;
+  },
+  renderReporteDiario(){
+    const hoy = todayISO();
+    const esHoy = this.repDia === hoy;
+    document.getElementById('rep-dia-label').textContent = esHoy ? 'Hoy' : fmtDate(this.repDia);
+    const nextBtn = document.getElementById('rep-dia-next');
+    nextBtn.disabled = esHoy;
+    nextBtn.style.opacity = esHoy ? '.35' : '1';
+
+    const data = Reports.porDia(this.repDia);
+    const ayerISO = (()=>{ const d = new Date(this.repDia+'T00:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })();
+    const ayer = Reports.porDia(ayerISO);
+
+    document.getElementById('rep-dia-total').textContent = fmt(data.total);
+    document.getElementById('rep-dia-clientes').textContent = `${data.clientesUnicos} cliente${data.clientesUnicos===1?'':'s'} cobrado${data.clientesUnicos===1?'':'s'} ese día`;
+    document.getElementById('rep-dia-metodos').innerHTML = `
+      <span>💵 Efectivo ${fmt(data.efectivo)}</span>
+      <span>🏦 Transferencia ${fmt(data.transferencia)}</span>`;
+    document.getElementById('rep-dia-gastos-total').textContent = '-'+fmt(data.totalGastos);
+    const netoEl = document.getElementById('rep-dia-neto');
+    netoEl.textContent = fmt(data.neto);
+    netoEl.style.color = data.neto < 0 ? 'var(--red-700)' : 'var(--ink)';
+
+    const trendBox = document.getElementById('rep-dia-trend');
+    if(ayer.total > 0){
+      const delta = Math.round(((data.total-ayer.total)/ayer.total)*100);
+      const up = delta >= 0;
+      trendBox.innerHTML = `<span class="trend ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(delta)}% vs. día anterior</span>`;
+    } else {
+      trendBox.innerHTML = data.total > 0 ? `<span class="trend up">▲ nuevo</span>` : '';
+    }
+
+    this.renderDonutSVG('rep-dia-donut', [
+      { value: data.efectivo, color: 'var(--green-500)' },
+      { value: data.transferencia, color: 'var(--gold-600)' }
+    ], data.total);
+
+    const gastosBox = document.getElementById('rep-dia-gastos-list');
+    if(data.gastosDia.length){
+      gastosBox.innerHTML = `<div class="section-title">Gastos de ese día</div>` + data.gastosDia.map(g=>{
+        const u = STATE.usuarios.find(x=>x.id===g.cobradorId);
+        return `<div class="list-item">
+          <div class="avatar" style="background:var(--red-pale); color:var(--red-700);">${icon('receipt',16)}</div>
+          <div class="info"><div class="name">${g.concepto}</div><div class="meta">${g.categoria}${u?' · '+u.nombre:''}${g.comprobantes&&g.comprobantes.length?' · con comprobante':''}</div></div>
+          <div class="right"><div class="amount" style="color:var(--red-700);">-${fmt(g.monto)}</div><button class="small-link" onclick="UI.eliminarGastoRapido('${g.id}')">Eliminar</button></div>
+        </div>`;
+      }).join('');
+    } else {
+      gastosBox.innerHTML = '';
+    }
+
+    const box = document.getElementById('rep-dia-cobradores');
+    box.innerHTML = data.porCobrador.length ? data.porCobrador.map(x=>`
+      <div class="list-item">
+        <div class="avatar">${x.nombre.slice(0,1).toUpperCase()}</div>
+        <div class="info"><div class="name">${x.nombre}</div><div class="meta">Cobrado ese día</div></div>
+        <div class="right amount">${fmt(x.monto)}</div>
+      </div>`).join('') : `<div class="empty" style="padding:20px;"><p>Nadie ha registrado cobros ese día</p></div>`;
   },
   renderReportes(){
     const t = Reports.totales();
@@ -1878,6 +2262,7 @@ const UI = {
     document.getElementById('rep-efectivo').textContent = fmt(t.efectivo);
     document.getElementById('rep-transferencia').textContent = fmt(t.transferencia);
 
+    this.renderReporteDiario();
     this.renderReportesChart();
 
     const box = document.getElementById('rep-cobradores');
@@ -1932,7 +2317,7 @@ const UI = {
         const cl = STATE.clientes.find(x=>x.id===c.clienteId);
         return `<div class="list-item" onclick="UI.closeModal(); setTimeout(()=>UI.showReceipt('${c.id}'), 250);">
           <div class="avatar" style="background:var(--success-pale); color:var(--success);">${icon('check',15)}</div>
-          <div class="info"><div class="name">${fmt(c.monto)} · ${cl?cl.nombre:'Cliente eliminado'}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}${c.comprobante?' · con comprobante':''}</div></div>
+          <div class="info"><div class="name">${fmt(c.monto)} · ${cl?cl.nombre:'Cliente eliminado'}</div><div class="meta">${fmtDate(c.fecha)} · ${c.metodo}${c.firma?' · con firma':''}${photosOf(c,'comprobante','comprobantes').length?' · con comprobante':''}</div></div>
           <div class="right small-link">Ver recibo</div>
         </div>`;
       }).join('') : `<div class="empty" style="padding:16px;"><p>Todavía no ha registrado cobros</p></div>`}
