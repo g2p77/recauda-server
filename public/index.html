@@ -818,7 +818,11 @@ const MONEDA_SYMBOLS = {COP:'$', MXN:'$', PEN:'S/', BRL:'R$', USD:'$'};
 function fmt(n){
   const sym = MONEDA_SYMBOLS[STATE.negocio.moneda] || '$';
   n = Math.round(n||0);
-  return sym + n.toLocaleString('es-CO');
+  const neg = n < 0;
+  // Punto como separador de miles/millones a mano: no depende de que el navegador
+  // o el WebView del celular tenga soporte completo de Intl/ICU para 'es-CO'.
+  const conPuntos = Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (neg?'-':'') + sym + conPuntos;
 }
 function fmtDate(d){
   const dt = new Date(d);
@@ -1539,6 +1543,69 @@ function dibujarReciboCanvas(c, p, cl, cobrador, negocio){
   return canvas;
 }
 
+function dibujarCotizacionCanvas(datos, negocio){
+  const filas = [
+    ['Monto solicitado', fmt(datos.monto)],
+    ['Frecuencia', ({diario:'Diario', semanal:'Semanal', quincenal:'Quincenal', mensual:'Mensual'})[datos.frecuencia] || datos.frecuencia],
+    ['Número de cuotas', String(datos.numCuotas)],
+    ['Tasa mensual', datos.tasa+'%'],
+    ['Total a pagar', fmt(datos.total)]
+  ];
+  let cuotasNecesarias = null, ultimaPreferida = null;
+  const usaPreferida = datos.cuotaPreferida && datos.cuotaPreferida >= datos.cuota;
+  if(usaPreferida){
+    cuotasNecesarias = Math.ceil(datos.total / datos.cuotaPreferida);
+    ultimaPreferida = datos.total - datos.cuotaPreferida*(cuotasNecesarias-1);
+    filas.push(['Cuota elegida por el cliente', fmt(datos.cuotaPreferida)]);
+    filas.push(['Terminaría en', `${cuotasNecesarias} cuota${cuotasNecesarias===1?'':'s'} (última ${fmt(ultimaPreferida)})`]);
+  }
+
+  const W = 640, headerH = 168, rowH = 42, footerH = 58;
+  const H = headerH + filas.length*rowH + footerH;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#0F2A22'; ctx.fillRect(0,0,W,headerH);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '600 15px Arial';
+  ctx.fillText((negocio.nombre||'Recauda').toUpperCase(), W/2, 42);
+  ctx.fillStyle = '#E3ECE4';
+  ctx.font = '14px Arial';
+  ctx.fillText('Cotización de crédito (simulación)', W/2, 64);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 34px Arial';
+  ctx.fillText(fmt(usaPreferida ? datos.cuotaPreferida : datos.cuota) + ' / cuota', W/2, 122);
+
+  let y = headerH + 32;
+  filas.forEach(([label, value])=>{
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8A8064';
+    ctx.font = '15px Arial';
+    ctx.fillText(label, 40, y);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#211C13';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(String(value), W-40, y);
+    ctx.strokeStyle = '#DBCA9C';
+    ctx.beginPath(); ctx.moveTo(40, y+14); ctx.lineTo(W-40, y+14); ctx.stroke();
+    y += rowH;
+  });
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#B9862A';
+  ctx.font = 'bold 10.5px Arial';
+  ctx.fillText('ESTO ES UNA SIMULACIÓN, NO UN PRÉSTAMO APROBADO', W/2, H-38);
+  ctx.fillStyle = '#8A8064';
+  ctx.font = '11px Arial';
+  ctx.fillText(`Generado el ${new Date().toLocaleDateString('es-CO', {day:'2-digit', month:'long', year:'numeric'})}`, W/2, H-18);
+
+  return canvas;
+}
+
 /* =========================================================
    FOTOS — componente reutilizable para adjuntar una o varias
    fotos (comprobantes, tarjeta firmada, gastos), con opción de
@@ -2221,8 +2288,9 @@ const UI = {
         <div class="hint">Si es mayor a la cuota sugerida, te decimos en cuántas cuotas terminaría pagando eso en vez del número de cuotas de arriba.</div>
       </div>
       <div class="hint" id="sim-preferida-resultado"></div>
+      <button class="btn btn-primary" style="margin-top:14px;" onclick="UI.compartirCotizacionImagen()">${icon('share',16)} Compartir cotización</button>
     `);
-    this._simTotal = null; this._simCuota = null;
+    this._simTotal = null; this._simCuota = null; this._simCuotaFinal = null;
     ['sim-monto','sim-tasa','sim-cuotas'].forEach(id=>{
       document.getElementById(id).addEventListener('input', ()=>UI.updateSimulador());
     });
@@ -2238,13 +2306,13 @@ const UI = {
     const box = document.getElementById('sim-resultado');
     if(monto>0 && cuotas>0){
       const { total, cuota, cuotaFinal } = Loans.calcular(monto, tasa, cuotas, modo, frecuencia);
-      this._simTotal = total; this._simCuota = cuota;
+      this._simTotal = total; this._simCuota = cuota; this._simCuotaFinal = cuotaFinal;
       box.innerHTML = `
         <div class="receipt-row"><span>Total a pagar</span><span>${fmt(total)}</span></div>
         <div class="receipt-row"><span>Cuota sugerida</span><span>${fmt(cuota)}${cuotaFinal!==cuota?' (última '+fmt(cuotaFinal)+')':''}</span></div>
       `;
     } else {
-      this._simTotal = null; this._simCuota = null;
+      this._simTotal = null; this._simCuota = null; this._simCuotaFinal = null;
       box.innerHTML = `<div class="hint" style="margin:0;">Completa los datos para ver el cálculo</div>`;
     }
     this.updateSimuladorPreferida();
@@ -2261,6 +2329,37 @@ const UI = {
     const cuotasNecesarias = Math.ceil(this._simTotal / pref);
     const ultima = this._simTotal - pref*(cuotasNecesarias-1);
     el.innerHTML = `Pagando <b>${fmt(pref)}</b> por cuota, el cliente terminaría en <b>${cuotasNecesarias}</b> cuota${cuotasNecesarias===1?'':'s'} (última de ${fmt(ultima)}) en vez de ${numCuotasOriginal}.`;
+  },
+  async compartirCotizacionImagen(){
+    if(!this._simTotal){ this.toast('Completa los datos para generar la cotización'); return; }
+    const datos = {
+      monto: Number(document.getElementById('sim-monto').value)||0,
+      tasa: Number(document.getElementById('sim-tasa').value)||0,
+      numCuotas: Number(document.getElementById('sim-cuotas').value)||0,
+      frecuencia: document.getElementById('sim-frecuencia').value,
+      total: this._simTotal,
+      cuota: this._simCuota,
+      cuotaFinal: this._simCuotaFinal,
+      cuotaPreferida: Number(document.getElementById('sim-cuota-preferida').value)||0
+    };
+    this.toast('Generando imagen...');
+    const canvas = dibujarCotizacionCanvas(datos, STATE.negocio);
+    canvas.toBlob(async (blob)=>{
+      if(!blob){ this.toast('No se pudo generar la imagen'); return; }
+      const filename = `cotizacion-credito.png`;
+      const file = new File([blob], filename, { type: 'image/png' });
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: 'Cotización de crédito', text: `Cotización de crédito — ${STATE.negocio.nombre}` });
+          return;
+        } catch(err){ if(err.name === 'AbortError') return; }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      this.toast('Imagen descargada — compártela desde tu galería');
+    }, 'image/png', 0.95);
   },
 
   /* ---------------- PRÉSTAMOS ---------------- */
