@@ -4,7 +4,10 @@ App de cobranza para cobradiarios/pagadiarios, con servidor propio para que
 todo tu equipo de cobradores trabaje sobre los mismos datos, desde donde sea,
 y tú puedas administrarlos de forma remota.
 
-No tiene dependencias externas: solo necesitas tener **Node.js** instalado.
+Su única dependencia externa es **web-push** (para las notificaciones
+programadas); solo necesitas tener **Node.js** instalado y correr
+`npm install` una vez. Si no la instalas, el servidor sigue funcionando con
+normalidad, solo sin notificaciones.
 Los datos se guardan en un archivo (`data/db.json`) en tu propio servidor.
 
 ---
@@ -13,6 +16,7 @@ Los datos se guardan en un archivo (`data/db.json`) en tu propio servidor.
 
 ```bash
 cd recauda-server
+npm install
 node server.js
 ```
 
