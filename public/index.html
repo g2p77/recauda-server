@@ -967,22 +967,29 @@ const Auth = {
    app abierta, reporta su posición cada cierto tiempo para
    que el administrador pueda ver el mapa del equipo.
    ========================================================= */
+// Reporta la posición mientras la app esté viva (en primer plano o en segundo
+// plano/minimizada) — ningún sitio o PWA puede seguir corriendo con la app
+// totalmente cerrada, eso solo lo permite una app nativa con permiso de
+// ubicación en segundo plano. watchPosition da actualizaciones apenas el GPS
+// detecta movimiento (más parecido a "tiempo real" que sondear cada rato); el
+// intervalo de respaldo solo evita que el "visto por última vez" quede viejo
+// si el cobrador está quieto en un mismo sitio.
 const LocationReporter = {
-  interval: null,
+  watchId: null, interval: null,
   start(){
-    if(this.interval) return; // ya está corriendo
+    if(this.watchId != null || this.interval) return; // ya está corriendo
     if(!('geolocation' in navigator)) return;
-    const reportar = () => {
-      navigator.geolocation.getCurrentPosition(
-        pos => { Api.reportarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(()=>{}); },
-        () => { /* permiso denegado o sin señal: no molestamos con avisos repetidos */ },
-        { enableHighAccuracy:false, timeout:10000, maximumAge:60000 }
-      );
-    };
-    reportar();
-    this.interval = setInterval(reportar, 45000);
+    const enviar = pos => { Api.reportarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(()=>{}); };
+    const fallo = () => { /* permiso denegado o sin señal: no molestamos con avisos repetidos */ };
+    this.watchId = navigator.geolocation.watchPosition(enviar, fallo, { enableHighAccuracy:true, maximumAge:20000, timeout:20000 });
+    navigator.geolocation.getCurrentPosition(enviar, fallo, { enableHighAccuracy:false, timeout:10000, maximumAge:60000 });
+    this.interval = setInterval(()=>{
+      navigator.geolocation.getCurrentPosition(enviar, fallo, { enableHighAccuracy:false, timeout:10000, maximumAge:60000 });
+    }, 60000);
   },
   stop(){
+    if(this.watchId != null) navigator.geolocation.clearWatch(this.watchId);
+    this.watchId = null;
     if(this.interval) clearInterval(this.interval);
     this.interval = null;
   }
@@ -993,7 +1000,9 @@ const LocationReporter = {
    ubicación conocida de cada cobrador (Leaflet + OpenStreetMap).
    ========================================================= */
 const TeamMap = {
-  map: null, markers: {}, interval: null,
+  map: null, capas: {}, interval: null,
+  colores: ['#2F6E52','#B9862A','#8C2E27','#2F6EBA','#8E5FB8','#0E7490'],
+  colorPara(idx){ return this.colores[idx % this.colores.length]; },
   async init(){
     if(typeof L === 'undefined'){ UI.toast('No se pudo cargar el mapa (revisa tu conexión a internet)'); return; }
     this.map = L.map('team-map').setView([4.6097, -74.0817], 12);
@@ -1008,33 +1017,45 @@ const TeamMap = {
     try{
       const data = await Api.obtenerUbicaciones();
       const bounds = [];
-      Object.keys(data).forEach(uid=>{
+      const uids = Object.keys(data).filter(uid=>data[uid] && data[uid].length);
+      uids.forEach((uid, idx)=>{
         const puntos = data[uid];
-        if(!puntos.length) return;
         const ultimo = puntos[puntos.length-1];
         const u = STATE.usuarios.find(x=>x.id===uid);
         const nombre = u ? u.nombre : 'Cobrador';
-        const pos = [ultimo.lat, ultimo.lng];
-        bounds.push(pos);
+        const color = this.colorPara(idx);
+        const latlngs = puntos.map(p=>[p.lat, p.lng]);
+        const posUltima = [ultimo.lat, ultimo.lng];
+        bounds.push(...latlngs);
         const mins = Math.round((Date.now() - new Date(ultimo.fecha).getTime())/60000);
-        const etiqueta = `<b>${nombre}</b><br>hace ${mins<1?'un momento':mins+' min'}`;
-        if(this.markers[uid]) this.markers[uid].setLatLng(pos).setPopupContent(etiqueta);
-        else this.markers[uid] = L.marker(pos).addTo(this.map).bindPopup(etiqueta);
+        const etiqueta = `<b>${nombre}</b><br>hace ${mins<1?'un momento':mins+' min'}<br>${puntos.length} punto(s) hoy`;
+        if(this.capas[uid]){
+          this.capas[uid].ruta.setLatLngs(latlngs);
+          this.capas[uid].marcador.setLatLng(posUltima).setPopupContent(etiqueta);
+        } else {
+          const ruta = L.polyline(latlngs, { color, weight: 4, opacity: 0.65 }).addTo(this.map);
+          const marcador = L.circleMarker(posUltima, { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(this.map).bindPopup(etiqueta);
+          this.capas[uid] = { ruta, marcador, color };
+        }
+      });
+      // limpia rutas de cobradores que ya no tienen puntos (ej. después de medianoche)
+      Object.keys(this.capas).forEach(uid=>{
+        if(!uids.includes(uid)){ this.capas[uid].ruta.remove(); this.capas[uid].marcador.remove(); delete this.capas[uid]; }
       });
       if(bounds.length) this.map.fitBounds(bounds, { maxZoom: 15, padding: [30,30] });
       const listBox = document.getElementById('team-map-list');
       if(listBox){
-        const filas = Object.keys(data).map(uid=>{
+        const filas = uids.map(uid=>{
           const puntos = data[uid];
-          if(!puntos.length) return '';
           const ultimo = puntos[puntos.length-1];
           const u = STATE.usuarios.find(x=>x.id===uid);
           const mins = Math.round((Date.now() - new Date(ultimo.fecha).getTime())/60000);
+          const color = this.capas[uid] ? this.capas[uid].color : '#8A8064';
           return `<div class="list-item">
-            <div class="avatar">${(u?u.nombre:'?').slice(0,1).toUpperCase()}</div>
-            <div class="info"><div class="name">${u?u.nombre:'Cobrador'}</div><div class="meta">Actualizado hace ${mins<1?'un momento':mins+' min'}</div></div>
+            <div class="avatar" style="background:${color}; color:#fff;">${(u?u.nombre:'?').slice(0,1).toUpperCase()}</div>
+            <div class="info"><div class="name">${u?u.nombre:'Cobrador'}</div><div class="meta">Actualizado hace ${mins<1?'un momento':mins+' min'} · ${puntos.length} punto(s) hoy</div></div>
           </div>`;
-        }).filter(Boolean).join('');
+        }).join('');
         listBox.innerHTML = filas || `<div class="empty" style="padding:16px;"><p>Nadie ha compartido su ubicación todavía</p></div>`;
       }
     } catch(e){ /* si falla, se reintenta en el próximo intervalo */ }
@@ -1043,7 +1064,8 @@ const TeamMap = {
     if(this.interval) clearInterval(this.interval);
     this.interval = null;
     if(this.map){ this.map.remove(); this.map = null; }
-    this.markers = {};
+    Object.values(this.capas).forEach(c=>{ c.ruta.remove(); c.marcador.remove(); });
+    this.capas = {};
   }
 };
 
@@ -2505,8 +2527,8 @@ const UI = {
   showTeamMap(){
     this.openModal(`
       <div class="modal-title">Mapa del equipo</div>
-      <div class="hint" style="margin-top:-8px; margin-bottom:10px;">Última ubicación conocida de cada cobrador, mientras tenga la app abierta.</div>
-      <div id="team-map" style="width:100%; height:320px; border-radius:12px; overflow:hidden; border:1px solid var(--paper-line);"></div>
+      <div class="hint" style="margin-top:-8px; margin-bottom:10px;">Recorrido de hoy y última posición de cada cobrador, mientras tenga la app abierta (puede estar en segundo plano).</div>
+      <div id="team-map" style="width:100%; height:340px; border-radius:12px; overflow:hidden; border:1px solid var(--paper-line);"></div>
       <div id="team-map-list" style="margin-top:10px;"></div>
     `);
     requestAnimationFrame(()=>TeamMap.init());

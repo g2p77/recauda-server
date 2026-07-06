@@ -436,6 +436,8 @@ async function api(req, res, pathname, method){
     DB.usuarios = DB.usuarios.filter(u=>u.id!==id);
     // sus clientes no se eliminan: quedan reasignados a quien borra el cobrador
     DB.clientes.forEach(c=>{ if(c.cobradorId === id) c.cobradorId = me.id; });
+    delete DB.ubicaciones[id];
+    delete DB.pushSubs[id];
     saveDB();
     return send(res, 200, { usuarios: DB.usuarios.map(publicUser) });
   }
