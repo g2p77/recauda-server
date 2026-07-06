@@ -1,10 +1,8 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "REEMPLAZA_ESTO_CON_TU_PACKAGE_ID",
-      "sha256_cert_fingerprints": ["REEMPLAZA_ESTO_CON_TU_HUELLA_SHA256"]
-    }
-  }
-]
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.onrender.zaju_recaudo_server.twa",
+        "sha256_cert_fingerprints": ["92:9A:B5:11:26:93:16:F6:65:67:83:84:3F:23:51:32:33:17:29:58:AF:DC:F0:21:9A:D0:EE:24:07:7E:17:03"]
+      }
+    }]
