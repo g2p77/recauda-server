@@ -670,6 +670,18 @@ hr.sep{border:none; border-top:1px solid var(--paper-line); margin:12px 0;}
           </div>
           </div>
 
+          <div id="admin-only-importar">
+          <div class="section-title">Importar clientes existentes</div>
+          <div class="card">
+            <p class="hint" style="margin-top:0;">¿Ya tenías clientes antes de usar Recauda? Descarga la plantilla, complétala en Excel con tus clientes y (si quieres) su préstamo actual, y súbela aquí. No borra nada de lo que ya tienes cargado.</p>
+            <div class="btn-row">
+              <button class="btn btn-outline" onclick="UI.descargarPlantillaClientes()">📄 Descargar plantilla</button>
+              <button class="btn btn-outline" onclick="document.getElementById('importar-clientes-file').click()">⬆️ Subir archivo</button>
+            </div>
+            <input type="file" id="importar-clientes-file" accept=".csv" style="display:none" onchange="UI.importarClientesCSV(this.files[0]); this.value='';">
+          </div>
+          </div>
+
           <div id="admin-only-datos">
           <div class="section-title">Tus datos</div>
           <div class="card">
@@ -753,6 +765,32 @@ function photoGallery(urls, size){
   return `<div style="display:flex; flex-wrap:wrap; gap:8px;">${urls.map(u=>`<a href="${u}" target="_blank"><img src="${u}" style="width:${size}px; height:${size}px; object-fit:cover; border-radius:8px; border:1px solid var(--paper-line);"></a>`).join('')}</div>`;
 }
 
+// Parser CSV manual (sin dependencias): soporta campos entre comillas con comas o
+// saltos de línea adentro, como los que genera Excel al exportar a CSV.
+function parseCSV(texto){
+  const filas = [];
+  let fila = [], campo = '', enComillas = false;
+  for(let i=0; i<texto.length; i++){
+    const c = texto[i], sig = texto[i+1];
+    if(enComillas){
+      if(c === '"' && sig === '"'){ campo += '"'; i++; }
+      else if(c === '"'){ enComillas = false; }
+      else campo += c;
+    } else {
+      if(c === '"'){ enComillas = true; }
+      else if(c === ','){ fila.push(campo); campo = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && sig === '\n') i++;
+        fila.push(campo); campo = '';
+        if(fila.length > 1 || fila[0] !== '') filas.push(fila);
+        fila = [];
+      } else campo += c;
+    }
+  }
+  if(campo !== '' || fila.length){ fila.push(campo); filas.push(fila); }
+  return filas;
+}
+
 /* =========================================================
    API — comunicación con el servidor propio (mismo origen)
    ========================================================= */
@@ -789,6 +827,7 @@ const Api = {
   crearCliente(d){ return this.request('POST', '/api/clientes', d); },
   editarCliente(id, d){ return this.request('PUT', '/api/clientes/'+id, d); },
   eliminarCliente(id){ return this.request('DELETE', '/api/clientes/'+id); },
+  importarClientes(filas){ return this.request('POST', '/api/clientes/importar', { filas }); },
   crearPrestamo(d){ return this.request('POST', '/api/prestamos', d); },
   renovarPrestamo(id, d){ return this.request('PUT', '/api/prestamos/'+id+'/renovar', d); },
   registrarCobro(d){ return this.request('POST', '/api/cobros', d); },
@@ -1836,7 +1875,7 @@ const UI = {
 
   applyRoleVisibility(){
     const esAdmin = Auth.currentUser().rol === 'admin';
-    ['admin-only-negocio','admin-only-zonas','admin-only-mapa','admin-only-datos'].forEach(id=>{
+    ['admin-only-negocio','admin-only-zonas','admin-only-mapa','admin-only-importar','admin-only-datos'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.style.display = esAdmin ? '' : 'none';
     });
@@ -2201,6 +2240,69 @@ const UI = {
       this.toast('Cliente eliminado');
       this.goto('clientes');
     } catch(e){ this.toast(e.message); }
+  },
+
+  /* ---------------- IMPORTAR CLIENTES EXISTENTES ---------------- */
+  descargarPlantillaClientes(){
+    const encabezados = ['Nombre','Cedula','Telefono','Direccion','Zona','Cobrador','Monto_Prestado','Total_A_Pagar','Saldo_Pendiente','Cuota','Numero_Cuotas','Frecuencia','Fecha_Inicio'];
+    const ejemplo = ['Maria Gonzalez','1098765432','3001234567','Calle 10 # 5-20','Centro','','500000','600000','350000','20000','30','diario','2026-06-01'];
+    const filaVacia = ['Juan Perez','','','','','','','','','','','',''];
+    const csv = [encabezados, ejemplo, filaVacia].map(fila =>
+      fila.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')
+    ).join('\r\n');
+    const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'plantilla_clientes_recauda.csv'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    this.toast('Plantilla descargada — ábrela en Excel y guárdala de nuevo como CSV al terminar');
+  },
+  async importarClientesCSV(file){
+    if(!file) return;
+    this.toast('Leyendo archivo...');
+    try{
+      const texto = await file.text();
+      const filas = parseCSV(texto).filter(f => f.some(v => v.trim() !== ''));
+      if(filas.length < 2){ this.toast('El archivo no tiene filas de clientes para importar'); return; }
+      const encabezado = filas[0].map(h => h.trim().toLowerCase());
+      const col = (nombre) => encabezado.indexOf(nombre);
+      const iNombre = col('nombre');
+      if(iNombre === -1){ this.toast('El archivo no tiene la columna "Nombre" — usa la plantilla descargada'); return; }
+      const datos = filas.slice(1).map(c => ({
+        nombre: c[iNombre] || '',
+        cedula: c[col('cedula')] || '',
+        telefono: c[col('telefono')] || '',
+        direccion: c[col('direccion')] || '',
+        zona: c[col('zona')] || '',
+        cobrador: c[col('cobrador')] || '',
+        monto: c[col('monto_prestado')] || '',
+        total: c[col('total_a_pagar')] || '',
+        saldo: c[col('saldo_pendiente')] || '',
+        cuota: c[col('cuota')] || '',
+        numCuotas: c[col('numero_cuotas')] || '',
+        frecuencia: (c[col('frecuencia')] || '').trim().toLowerCase(),
+        fechaInicio: c[col('fecha_inicio')] || ''
+      }));
+      const { resultados, creados, errores } = await Api.importarClientes(datos);
+      await this.refreshState();
+      this.toast(`${creados} cliente(s) importado(s)${errores.length ? ', '+errores.length+' fila(s) con error' : ''}`);
+      this.renderImportResultados(resultados);
+    } catch(e){ this.toast(e.message || 'No se pudo importar el archivo'); }
+  },
+  renderImportResultados(resultados){
+    const errores = resultados.filter(r=>!r.ok);
+    const conPrestamo = resultados.filter(r=>r.ok && r.prestamoCreado).length;
+    const html = `
+      <div class="modal-title">Resultado de la importación</div>
+      <p class="hint" style="margin-top:0;">${resultados.length - errores.length} cliente(s) importado(s) correctamente (${conPrestamo} con préstamo activo incluido).</p>
+      ${errores.length ? `
+        <div class="section-title" style="margin-top:6px;">Filas con problema</div>
+        ${errores.map(e=>`<div class="list-item"><div class="info"><div class="name">Fila ${e.fila}</div><div class="meta">${e.error}</div></div></div>`).join('')}
+        <p class="hint">Corrige esas filas y sube un archivo que contenga <b>solo esas filas</b> (con el encabezado) — si vuelves a subir el archivo completo, los clientes que ya se importaron bien se crearán de nuevo, duplicados.</p>
+      ` : ''}
+      <button class="btn btn-primary" style="margin-top:10px;" onclick="UI.closeModal()">Entendido</button>
+    `;
+    this.openModal(html);
   },
 
   /* ---------------- GASTOS ---------------- */

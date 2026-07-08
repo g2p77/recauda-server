@@ -455,6 +455,69 @@ async function api(req, res, pathname, method){
     return send(res, 200, { cliente });
   }
 
+  // Importación masiva de clientes que el negocio ya tenía antes de usar Recauda
+  // (desde una plantilla CSV). Agrega clientes nuevos y, si traen datos de préstamo,
+  // su préstamo activo actual — nunca borra ni reemplaza lo que ya existe.
+  if(pathname === '/api/clientes/importar' && method === 'POST'){
+    if(me.rol !== 'admin') return send(res, 403, { error: 'Solo un administrador puede importar clientes' });
+    const body = await readBody(req);
+    const filas = Array.isArray(body.filas) ? body.filas : [];
+    const zonas = new Set(DB.negocio.zonas || []);
+    const FRECUENCIAS = ['diario', 'semanal', 'quincenal', 'mensual'];
+    const resultados = filas.map((fila, idx) => {
+      const numFila = idx + 2; // la fila 1 del CSV es el encabezado
+      const nombre = String(fila.nombre || '').trim();
+      if (!nombre) return { fila: numFila, ok: false, error: 'Falta el nombre' };
+
+      let cobradorId = me.id;
+      const nombreCobrador = String(fila.cobrador || '').trim();
+      if (nombreCobrador) {
+        const encontrado = DB.usuarios.find(u => u.nombre.toLowerCase() === nombreCobrador.toLowerCase());
+        if (encontrado) cobradorId = encontrado.id;
+      }
+
+      const zona = String(fila.zona || '').trim();
+      const cliente = {
+        id: uid('cl'), nombre,
+        cedula: String(fila.cedula || '').trim(),
+        telefono: String(fila.telefono || '').trim(),
+        direccion: String(fila.direccion || '').trim(),
+        zona, cobradorId
+      };
+      if (zona) zonas.add(zona);
+      DB.clientes.push(cliente);
+
+      const monto = Number(fila.monto) || 0;
+      const total = Number(fila.total) || 0;
+      const cuota = Number(fila.cuota) || 0;
+      const numCuotas = Number(fila.numCuotas) || 0;
+      let prestamoCreado = false;
+      if (monto > 0 && total > 0 && cuota > 0 && numCuotas > 0) {
+        const saldoIngresado = Number(fila.saldo);
+        const saldo = Math.min(Number.isFinite(saldoIngresado) && saldoIngresado >= 0 ? saldoIngresado : total, total);
+        const frecuencia = FRECUENCIAS.includes(String(fila.frecuencia || '').toLowerCase()) ? String(fila.frecuencia).toLowerCase() : 'diario';
+        const cuotaFinal = numCuotas > 1 ? Math.max(0, total - cuota * (numCuotas - 1)) : total;
+        DB.prestamos.push({
+          id: uid('p'), clienteId: cliente.id, monto, tasa: 0, modoInteres: 'fijo', frecuencia,
+          numCuotas, cuota, cuotaFinal, total, saldo,
+          cuotasPagadas: Math.min(numCuotas, Math.round((total - saldo) / cuota)),
+          fechaInicio: fila.fechaInicio || todayISO(), estado: 'activo',
+          entregadoPor: me.id, tarjetaFirma: null, fotosTarjeta: [],
+          esPrenda: false, prendaDescripcion: '', fotosPrenda: []
+        });
+        prestamoCreado = true;
+      }
+      return { fila: numFila, ok: true, nombre, prestamoCreado };
+    });
+    DB.negocio.zonas = [...zonas];
+    saveDB();
+    return send(res, 200, {
+      resultados,
+      creados: resultados.filter(r => r.ok).length,
+      errores: resultados.filter(r => !r.ok)
+    });
+  }
+
   if(pathname.startsWith('/api/clientes/') && (method === 'PUT' || method === 'DELETE')){
     if(me.rol !== 'admin') return send(res, 403, { error: 'Solo un administrador puede editar o eliminar clientes' });
     const id = pathname.split('/')[3];
