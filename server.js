@@ -491,6 +491,7 @@ async function api(req, res, pathname, method){
       const total = Number(fila.total) || 0;
       const cuota = Number(fila.cuota) || 0;
       const numCuotas = Number(fila.numCuotas) || 0;
+      const tasa = Number(fila.tasa) || 0;
       let prestamoCreado = false;
       if (monto > 0 && total > 0 && cuota > 0 && numCuotas > 0) {
         const saldoIngresado = Number(fila.saldo);
@@ -498,7 +499,7 @@ async function api(req, res, pathname, method){
         const frecuencia = FRECUENCIAS.includes(String(fila.frecuencia || '').toLowerCase()) ? String(fila.frecuencia).toLowerCase() : 'diario';
         const cuotaFinal = numCuotas > 1 ? Math.max(0, total - cuota * (numCuotas - 1)) : total;
         DB.prestamos.push({
-          id: uid('p'), clienteId: cliente.id, monto, tasa: 0, modoInteres: 'fijo', frecuencia,
+          id: uid('p'), clienteId: cliente.id, monto, tasa, modoInteres: 'fijo', frecuencia,
           numCuotas, cuota, cuotaFinal, total, saldo,
           cuotasPagadas: Math.min(numCuotas, Math.round((total - saldo) / cuota)),
           fechaInicio: fila.fechaInicio || todayISO(), estado: 'activo',

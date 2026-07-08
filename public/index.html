@@ -2244,9 +2244,9 @@ const UI = {
 
   /* ---------------- IMPORTAR CLIENTES EXISTENTES ---------------- */
   descargarPlantillaClientes(){
-    const encabezados = ['Nombre','Cedula','Telefono','Direccion','Zona','Cobrador','Monto_Prestado','Total_A_Pagar','Saldo_Pendiente','Cuota','Numero_Cuotas','Frecuencia','Fecha_Inicio'];
-    const ejemplo = ['Maria Gonzalez','1098765432','3001234567','Calle 10 # 5-20','Centro','','500000','600000','350000','20000','30','diario','2026-06-01'];
-    const filaVacia = ['Juan Perez','','','','','','','','','','','',''];
+    const encabezados = ['Nombre','Cedula','Telefono','Direccion','Zona','Cobrador','Monto_Prestado','Tasa_Mensual_%','Total_A_Pagar','Saldo_Pendiente','Cuota','Numero_Cuotas','Frecuencia','Fecha_Inicio'];
+    const ejemplo = ['Maria Gonzalez','1098765432','3001234567','Calle 10 # 5-20','Centro','','500000','20','600000','350000','20000','30','diario','2026-06-01'];
+    const filaVacia = ['Juan Perez','','','','','','','','','','','','',''];
     const csv = [encabezados, ejemplo, filaVacia].map(fila =>
       fila.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')
     ).join('\r\n');
@@ -2276,6 +2276,7 @@ const UI = {
         zona: c[col('zona')] || '',
         cobrador: c[col('cobrador')] || '',
         monto: c[col('monto_prestado')] || '',
+        tasa: c[col('tasa_mensual_%')] || '',
         total: c[col('total_a_pagar')] || '',
         saldo: c[col('saldo_pendiente')] || '',
         cuota: c[col('cuota')] || '',
