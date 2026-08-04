@@ -179,9 +179,17 @@ function construirCuotas(total, numCuotas){
   }
   return { total, cuota, cuotaFinal };
 }
+// Tasa por cuota: el % mensual se cobra completo aunque el préstamo dure menos de un
+// mes (ej. 24 días se cobra como 1 mes completo, no como 24/30 del mes). Cualquier
+// fracción de mes adicional también redondea hacia arriba a mes completo.
+function tasaPorCuota(tasaMensualPct, frecuencia, numCuotas){
+  const diasPorCuota = PERIOD_DAYS[frecuencia] || 1;
+  const totalDias = diasPorCuota * numCuotas;
+  const meses = Math.max(1, Math.ceil(totalDias / 30));
+  return (tasaMensualPct/100) * meses / numCuotas;
+}
 function calcularPrestamo(monto, tasaMensualPct, numCuotas, modo, frecuencia){
-  const dias = PERIOD_DAYS[frecuencia] || 1;
-  const r = (tasaMensualPct/100) * (dias/30);
+  const r = tasaPorCuota(tasaMensualPct, frecuencia, numCuotas);
   let total;
   if(modo === 'fijo'){
     total = monto * (1 + r*numCuotas);

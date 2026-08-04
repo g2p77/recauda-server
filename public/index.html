@@ -906,9 +906,14 @@ function contarDomingosEntre(desde, hasta){
 }
 
 const Loans = {
-  tasaPeriodo(tasaMensualPct, frecuencia){
-    const dias = PERIOD_DAYS[frecuencia] || 1;
-    return (tasaMensualPct/100) * (dias/30);
+  // Tasa por cuota: el % mensual se cobra completo aunque el préstamo dure menos de un
+  // mes (ej. 24 días se cobra como 1 mes completo, no como 24/30 del mes). Cualquier
+  // fracción de mes adicional también redondea hacia arriba a mes completo.
+  tasaPeriodo(tasaMensualPct, frecuencia, numCuotas){
+    const diasPorCuota = PERIOD_DAYS[frecuencia] || 1;
+    const totalDias = diasPorCuota * numCuotas;
+    const meses = Math.max(1, Math.ceil(totalDias / 30));
+    return (tasaMensualPct/100) * meses / numCuotas;
   },
   // Reparte el total en cuotas redondeadas a múltiplos de mil (más fáciles de cobrar en
   // efectivo); la última cuota absorbe el residuo del redondeo, puede quedar más grande o
@@ -924,7 +929,7 @@ const Loans = {
     return { total, cuota, cuotaFinal };
   },
   calcular(monto, tasaMensualPct, numCuotas, modo, frecuencia){
-    const r = this.tasaPeriodo(tasaMensualPct, frecuencia);
+    const r = this.tasaPeriodo(tasaMensualPct, frecuencia, numCuotas);
     let total;
     if(modo === 'fijo'){
       total = monto * (1 + r*numCuotas);
